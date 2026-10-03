@@ -1,0 +1,4 @@
+*.osm.pbf
+*.part
+__pycache__/
+.claude/

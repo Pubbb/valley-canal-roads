@@ -1,0 +1,856 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Valley Canal Roads</title>
+<meta name="description" content="Phoenix-metro canals, canal-bank roads, canal trails and street openings from OpenStreetMap.">
+<meta name="theme-color" content="#f4f6f8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#16191d" media="(prefers-color-scheme: dark)">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Canal Roads">
+<!--__PWA_HEAD__-->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+/* Layout: full-bleed map; a bottom sheet on phones that becomes a left side panel on wider screens. */
+:root {
+  color-scheme: light;
+  --bg: #f4f6f8;
+  --panel: #ffffff;
+  --text: #1c2228;
+  --muted: #5d6874;
+  --border: #d9dee3;
+  --hover: #edf0f3;
+  --accent: #1667b8;
+  --accent-text: #ffffff;
+  --gold: #b7791f;
+  --warn-bg: #fff3e0;
+  --warn-text: #6a3f00;
+  --shadow: 0 4px 18px rgba(16, 24, 32, .18);
+  --peek-h: 70px;
+  --peek: calc(var(--peek-h) + env(safe-area-inset-bottom, 0px));
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #16191d; --panel: #1f2328; --text: #e6e9ec; --muted: #9aa4ae; --border: #343a41;
+    --hover: #2a2f35; --accent: #5aa9f5; --accent-text: #0b1520; --gold: #facc15; --warn-bg: #3a2a10; --warn-text: #f3d39b;
+    --shadow: 0 4px 18px rgba(0, 0, 0, .55);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #16191d; --panel: #1f2328; --text: #e6e9ec; --muted: #9aa4ae; --border: #343a41;
+  --hover: #2a2f35; --accent: #5aa9f5; --accent-text: #0b1520; --gold: #facc15; --warn-bg: #3a2a10; --warn-text: #f3d39b;
+  --shadow: 0 4px 18px rgba(0, 0, 0, .55);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--text);
+  font: 15px/1.4 var(--font); -webkit-text-size-adjust: 100%; }
+button { font: inherit; color: inherit; }
+button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#map { position: absolute; inset: 0; background: var(--bg); }
+
+/* ---------- sheet / panel ---------- */
+.sheet {
+  position: fixed; z-index: 1000; left: 0; right: 0; bottom: 0; height: 88%;
+  background: var(--panel); color: var(--text); border-top: 1px solid var(--border);
+  border-radius: 16px 16px 0 0; box-shadow: var(--shadow);
+  display: flex; flex-direction: column;
+  transform: translateY(calc(100% - var(--peek)));
+  transition: transform .28s cubic-bezier(.2, .8, .2, 1);
+}
+.sheet[data-state="open"] { transform: translateY(0); }
+.sheet-head { padding: 6px 16px 10px; touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; flex: none; }
+.grab { width: 38px; height: 5px; border-radius: 3px; background: var(--border); margin: 0 auto 8px; }
+.head-row { display: flex; align-items: center; gap: 10px; }
+.head-row > div { flex: 1; min-width: 0; }
+.sheet h1 { font-size: 17px; margin: 0; letter-spacing: -.01em; }
+.summary { margin: 2px 0 0; font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.summary b { font-weight: 600; }
+.summary .r { color: var(--red); }
+.sheet-body { overflow-y: auto; overscroll-behavior: contain; padding: 0 16px calc(20px + env(safe-area-inset-bottom, 0px)); flex: 1; -webkit-overflow-scrolling: touch; }
+.sheet h2 { font-size: 11.5px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin: 18px 0 8px; font-weight: 600; }
+.iconbtn { flex: none; width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--border);
+  background: var(--panel); cursor: pointer; display: grid; place-items: center; }
+.iconbtn svg { width: 20px; height: 20px; transition: transform .25s; }
+.sheet[data-state="open"] #sheetBtn svg { transform: rotate(180deg); }
+
+.layer { display: flex; align-items: center; gap: 10px; padding: 8px 6px; border-radius: 8px; cursor: pointer; min-height: 42px; }
+.layer:hover { background: var(--hover); }
+.layer input { margin: 0; width: 18px; height: 18px; accent-color: var(--accent); flex: none; }
+.layer .name { flex: 1; min-width: 0; }
+.layer .count { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 13px; }
+.layer.sub { font-size: 13px; color: var(--muted); }
+.group { font-size: 12.5px; font-weight: 600; color: var(--text); margin: 10px 0 2px; }
+.group:first-child { margin-top: 0; }
+.sw { width: 24px; height: 12px; flex: none; display: inline-flex; align-items: center; justify-content: center; }
+.sw svg { display: block; }
+
+.seg { display: flex; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.seg button { flex: 1; border: 0; background: transparent; padding: 10px 4px; cursor: pointer; min-height: 42px; }
+.seg button + button { border-left: 1px solid var(--border); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); font-weight: 600; }
+
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.btn { border: 1px solid var(--border); background: var(--panel); border-radius: 9px; padding: 9px 10px;
+  font-size: 14px; cursor: pointer; text-align: left; min-height: 42px; }
+.btn:hover { background: var(--hover); }
+.btn.wide { grid-column: 1 / -1; text-align: center; }
+.btn.center { text-align: center; }
+
+.near-list { display: flex; flex-direction: column; gap: 2px; }
+.near { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; background: transparent; padding: 9px 6px;
+  border-radius: 8px; cursor: pointer; text-align: left; min-height: 44px; }
+.near:hover { background: var(--hover); }
+.near .dot { width: 12px; height: 12px; border-radius: 50%; flex: none; box-shadow: 0 0 0 2px var(--panel), 0 0 0 3px var(--border); }
+.near .nm { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.near .nm small { display: block; color: var(--muted); font-size: 12px; }
+.near .d { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.hint { font-size: 12.5px; color: var(--muted); margin: 6px 0 0; }
+
+.note { background: var(--warn-bg); color: var(--warn-text); border-radius: 10px; padding: 10px 12px; font-size: 13px; margin-top: 18px; }
+.meta { color: var(--muted); font-size: 12px; margin-top: 12px; }
+
+/* ---------- detail card (phones) ---------- */
+.card {
+  position: fixed; z-index: 1100; left: 8px; right: 8px; bottom: calc(var(--peek) + 8px);
+  max-height: 58%; overflow-y: auto; overscroll-behavior: contain;
+  background: var(--panel); color: var(--text); border: 1px solid var(--border);
+  border-radius: 14px; box-shadow: var(--shadow); padding: 14px 16px 16px;
+  animation: rise .2s ease-out;
+}
+@keyframes rise { from { transform: translateY(16px); opacity: 0; } }
+.card .close { position: absolute; top: 8px; right: 8px; width: 36px; height: 36px; border-radius: 50%; border: 0;
+  background: var(--hover); cursor: pointer; font-size: 18px; line-height: 1; }
+
+/* ---------- feature details (shared by card and popup) ---------- */
+.pop h3 { margin: 0 44px 6px 0; font-size: 16px; line-height: 1.25; }
+.leaflet-popup .pop h3 { margin-right: 14px; }
+.pill { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 10px; color: #fff; margin-bottom: 8px; }
+.pop table { border-collapse: collapse; width: 100%; font-size: 14px; }
+.pop td { padding: 3px 0; vertical-align: top; }
+.pop td:first-child { color: var(--muted); padding-right: 12px; white-space: nowrap; }
+.pop .caveat { font-size: 12.5px; color: var(--muted); margin: 8px 0 0; }
+.links { margin-top: 12px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.links a { display: block; text-align: center; padding: 9px 6px; border-radius: 9px; border: 1px solid var(--border);
+  color: var(--accent); text-decoration: none; font-weight: 600; font-size: 14px; }
+.links a:hover { background: var(--hover); }
+.links a.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+
+/* ---------- collected ---------- */
+.collect { display: flex; align-items: center; gap: 12px; margin: 2px 0 10px; padding: 10px 12px; min-height: 50px;
+  border: 1px solid var(--border); border-radius: 10px; cursor: pointer; user-select: none; -webkit-user-select: none; }
+.collect input { width: 22px; height: 22px; margin: 0; flex: none; accent-color: var(--gold); }
+.collect span { font-weight: 600; flex: 1; }
+.collect small { color: var(--muted); font-size: 12.5px; }
+.collect.on { border-color: var(--gold); background: color-mix(in srgb, var(--gold) 14%, var(--panel)); }
+.progress { height: 8px; border-radius: 4px; background: var(--hover); overflow: hidden; margin: 8px 0 10px; }
+.progress span { display: block; height: 100%; background: var(--gold); border-radius: 4px; transition: width .3s; }
+.coll-stat { margin: 0; font-size: 14px; }
+.coll-stat b { font-variant-numeric: tabular-nums; }
+
+/* ---------- toast ---------- */
+.toast { position: fixed; z-index: 1200; left: 50%; top: calc(14px + env(safe-area-inset-top, 0px)); transform: translateX(-50%);
+  background: var(--text); color: var(--panel); padding: 9px 14px; border-radius: 10px; font-size: 14px;
+  box-shadow: var(--shadow); max-width: calc(100% - 32px); }
+
+/* ---------- Leaflet theming ---------- */
+.leaflet-container { font: inherit; }
+.leaflet-popup-content-wrapper, .leaflet-popup-tip { background: var(--panel); color: var(--text); box-shadow: var(--shadow); }
+.leaflet-popup-content { margin: 14px 16px; min-width: 240px; }
+.leaflet-container a.leaflet-popup-close-button { color: var(--muted); }
+.leaflet-bar a, .leaflet-bar a:hover, .leaflet-bar button { background: var(--panel); color: var(--text); border-color: var(--border); }
+.leaflet-control-attribution { background: color-mix(in srgb, var(--panel) 80%, transparent) !important; color: var(--muted); font-size: 10.5px; }
+.leaflet-control-attribution a { color: var(--accent); }
+.leaflet-top { top: env(safe-area-inset-top, 0px); }
+.leaflet-right { right: env(safe-area-inset-right, 0px); }
+.leaflet-bottom { bottom: var(--peek); }
+.fab { width: 44px; height: 44px; display: grid; place-items: center; border: 0; cursor: pointer; border-radius: 4px; }
+.fab svg { width: 22px; height: 22px; }
+.fab.on { color: var(--accent) !important; }
+.leaflet-touch .leaflet-bar { border-color: var(--border); }
+
+/* ---------- wide screens: side panel ---------- */
+@media (min-width: 720px) {
+  :root { --peek: 0px; }
+  .sheet, .sheet[data-state] { top: 12px; left: 12px; bottom: 12px; right: auto; width: 330px; height: auto;
+    transform: none; border-radius: 14px; border: 1px solid var(--border); transition: none; }
+  .sheet-head { cursor: default; touch-action: auto; padding-top: 14px; }
+  .grab, #sheetBtn { display: none; }
+  .card { display: none; }
+  .leaflet-bottom { bottom: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sheet, .iconbtn svg { transition: none; }
+  .card { animation: none; }
+}
+</style>
+</head>
+<body>
+<div id="map" role="application" aria-label="Map of canals and canal roads"></div>
+
+<section class="sheet" id="sheet" data-state="peek" aria-label="Map controls">
+  <div class="sheet-head" id="sheetHead">
+    <div class="grab" aria-hidden="true"></div>
+    <div class="head-row">
+      <div>
+        <h1>Valley Canal Roads</h1>
+        <p class="summary" id="summary"></p>
+      </div>
+      <button class="iconbtn" id="sheetBtn" aria-label="Show map controls" aria-expanded="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="sheet-body" id="sheetBody">
+    <h2>Basemap</h2>
+    <div class="seg" id="basemaps">
+      <button id="bm-streets" data-b="streets">Streets</button>
+      <button id="bm-satellite" data-b="satellite">Satellite</button>
+      <button id="bm-dark" data-b="dark">Dark</button>
+    </div>
+
+    <h2>Nearest points</h2>
+    <div class="near-list" id="nearby"></div>
+    <p class="hint">Measured from the centre of the map.</p>
+
+    <h2>Layers</h2>
+    <div id="layers"></div>
+
+    <h2>Jump to</h2>
+    <div class="grid2" id="cities"></div>
+
+    <h2>Your collection</h2>
+    <p class="coll-stat" id="collStat"></p>
+    <div class="progress" aria-hidden="true"><span id="collBar"></span></div>
+    <div class="grid2">
+      <button class="btn center" id="coll-export">Back up</button>
+      <button class="btn center" id="coll-import">Restore</button>
+    </div>
+    <input type="file" id="coll-file" accept=".json,application/json" hidden>
+    <p class="hint">Collected points are saved in this browser on this device. Back up to move them to another device or to keep them safe if browser data is cleared. On iPhone, add the map to your Home Screen so Safari keeps them.</p>
+
+    <h2>Export points</h2>
+    <div class="grid2">
+      <button class="btn center" id="exp-geojson">GeoJSON</button>
+      <button class="btn center" id="exp-csv">CSV</button>
+    </div>
+    <p class="hint">Exports the canal openings and rail crossings currently shown on the map.</p>
+
+    <div class="note">
+      <strong>Red means “no barrier recorded,” not “confirmed open.”</strong>
+      OpenStreetMap barrier mapping on SRP canal banks is patchy, so many red points may have gates or bollards that nobody has mapped yet.
+      SRP generally prohibits private vehicles on canal banks.
+    </div>
+    <div class="meta" id="meta"></div>
+  </div>
+</section>
+
+<div class="card" id="card" hidden role="dialog" aria-label="Details"></div>
+<div class="toast" id="toast" hidden role="status"></div>
+<div id="safeProbe" style="position:fixed;visibility:hidden;pointer-events:none;height:env(safe-area-inset-bottom, 0px)"></div>
+
+<script>
+const DATA = /*__DATA__*/null;
+
+(function () {
+  "use strict";
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const darkMQ = window.matchMedia("(prefers-color-scheme: dark)");
+  const phoneMQ = window.matchMedia("(max-width: 719px)");
+  const touch = window.matchMedia("(pointer: coarse)").matches;
+
+  // Per-viewer settings (basemap, layer toggles). Storage can be unavailable; never rely on it.
+  const KEY = "valley-canal-roads:v1";
+  const saved = (() => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { return {}; } })();
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch (e) {} };
+
+  // Collected openings: { osmNodeId: ISO date collected }, kept on this device.
+  const CKEY = "valley-canal-roads:collected";
+  let collected = (() => { try { return JSON.parse(localStorage.getItem(CKEY)) || {}; } catch (e) { return {}; } })();
+  function saveCollected() {
+    try { localStorage.setItem(CKEY, JSON.stringify(collected)); }
+    catch (e) { toast("Couldn’t save on this device. Private browsing may be blocking storage."); }
+    if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+  }
+  const isCollected = p => Object.prototype.hasOwnProperty.call(collected, p.node);
+  const fmtDate = iso => { const d = new Date(iso); return isNaN(d) ? "" : d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }); };
+
+  // ---------- palette (per theme) ----------
+  const PAL = {
+    light: { canal: "#1872d6", under: "#7fb2e8", road: "#c2570c", trail: "#16a34a", red: "#dc2626", grey: "#7c828b",
+             rail: "#7c3aed", streetcar: "#db2777", halo: "#ffffff", ring: "#111827", me: "#1a73e8",
+             collected: "#eab308", collectedStroke: "#5c3d0a",
+             railx: "#c026d3", railOther: "#4f46e5" },
+    dark:  { canal: "#4ea3ff", under: "#3d6a99", road: "#fb923c", trail: "#4ade80", red: "#f87171", grey: "#9ca3af",
+             rail: "#c084fc", streetcar: "#f472b6", halo: "#111418", ring: "#ffffff", me: "#5aa9f5",
+             collected: "#facc15", collectedStroke: "#111418",
+             railx: "#e879f9", railOther: "#818cf8" }
+  };
+  let pal = PAL[darkMQ.matches ? "dark" : "light"];
+  const setPalVar = () => document.documentElement.style.setProperty("--red", pal.red);
+  setPalVar();
+
+  // ---------- map ----------
+  const b = DATA.meta.bbox; // S W N E
+  const bounds = L.latLngBounds([b[0], b[1]], [b[2], b[3]]);
+  const map = L.map("map", { preferCanvas: true, zoomControl: false, maxZoom: 20, minZoom: 9,
+                             maxBounds: bounds.pad(0.6), tap: false });
+  window.canalMap = map; // handy for poking at the map from devtools
+  if (!touch) L.control.zoom({ position: "topright" }).addTo(map);
+  L.control.scale({ position: "bottomright", imperial: true, metric: false }).addTo(map);
+  if (saved.view) map.setView(saved.view.c, saved.view.z); else map.fitBounds(bounds);
+
+  map.createPane("labels").style.zIndex = 350;
+  map.getPane("labels").style.pointerEvents = "none";
+
+  const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services/";
+  const osmAttr = 'Data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+  const tile = (path, o) => L.tileLayer(ESRI + path + "/MapServer/tile/{z}/{y}/{x}", Object.assign({ maxZoom: 20 }, o));
+  const basemaps = {
+    streets: tile("World_Street_Map", { maxNativeZoom: 19,
+      attribution: 'Tiles &copy; Esri — Esri, HERE, Garmin, USGS | ' + osmAttr }),
+    satellite: L.layerGroup([
+      tile("World_Imagery", { maxNativeZoom: 19,
+        attribution: 'Tiles &copy; Esri — Esri, Maxar, Earthstar Geographics | ' + osmAttr }),
+      tile("Reference/World_Transportation", { maxNativeZoom: 19, pane: "labels" }),
+      tile("Reference/World_Boundaries_and_Places", { maxNativeZoom: 19, pane: "labels" })
+    ]),
+    dark: L.layerGroup([
+      tile("Canvas/World_Dark_Gray_Base", { maxNativeZoom: 16, attribution: 'Tiles &copy; Esri — Esri, HERE, Garmin | ' + osmAttr }),
+      tile("Canvas/World_Dark_Gray_Reference", { maxNativeZoom: 16, pane: "labels" })
+    ])
+  };
+
+  // Separate panes (each with its own canvas) keep the draw order fixed when layers are toggled.
+  const panes = ["canals", "rail", "roads", "trails", "openings", "select"];
+  const renderers = {};
+  panes.forEach((p, i) => {
+    map.createPane(p).style.zIndex = 400 + i * 10;
+    renderers[p] = L.canvas({ pane: p, tolerance: p === "openings" ? (touch ? 6 : 3) : (touch ? 10 : 6) });
+  });
+  map.getPane("select").style.pointerEvents = "none";
+
+  // ---------- details ----------
+  const row = (k, v) => v == null || v === "" ? "" : `<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`;
+  const osmLink = (type, id) => `<a href="https://www.openstreetmap.org/${type}/${id}" target="_blank" rel="noopener">OpenStreetMap</a>`;
+  const CONN = { road: "Canal-bank road", trail: "Canal trail", "road+trail": "Canal road and trail" };
+
+  function openingHTML(p) {
+    const color = p.barrier ? pal.grey : pal.red;
+    const barrier = p.barrier
+      ? `${p.barrier_type.replace(/_/g, " ")} ${p.barrier_m === 0 ? "at the junction" : `about ${p.barrier_m} m along`}`
+      : `None within ${DATA.meta.params.barrier_walk_m} m`;
+    const ll = `${p.lat},${p.lon}`;
+    return `<div class="pop">
+      <h3>${esc(p.street || "Unnamed street")}</h3>
+      <span class="pill" style="background:${color}">${p.barrier ? "Barrier mapped" : "No barrier recorded"}</span>
+      <label class="collect${isCollected(p) ? " on" : ""}">
+        <input type="checkbox" data-node="${p.node}" ${isCollected(p) ? "checked" : ""}>
+        <span>Collected</span><small>${isCollected(p) ? esc(fmtDate(collected[p.node])) : ""}</small>
+      </label>
+      <table>
+        ${row("Connection", (CONN[p.conn] || p.conn) + (p.via_connector ? " (via short spur)" : ""))}
+        ${row("Canal road type", p.canal_hw)}
+        ${row("Canal road name", p.canal_road)}
+        ${row("Canal", p.canal)}
+        ${row("Street class", p.street_class)}
+        ${row("Barrier", barrier)}
+        ${row("access", p.access)}
+        ${row("motor_vehicle", p.motor_vehicle)}
+      </table>
+      ${p.barrier ? "" : `<p class="caveat">Nothing is mapped here, but there may still be a gate. SRP generally prohibits private vehicles on canal banks.</p>`}
+      <div class="links">
+        <a class="primary" href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${ll}" target="_blank" rel="noopener">Street View</a>
+        <a href="https://www.google.com/maps/search/?api=1&query=${ll}" target="_blank" rel="noopener">Google Maps</a>
+        <a href="https://www.google.com/maps/dir/?api=1&destination=${ll}" target="_blank" rel="noopener">Directions</a>
+        <a href="https://www.openstreetmap.org/node/${p.node}#map=19/${p.lat}/${p.lon}" target="_blank" rel="noopener">OpenStreetMap</a>
+      </div></div>`;
+  }
+  function roadHTML(p, kind) {
+    return `<div class="pop"><h3>${esc(p.name || (kind === "trail" ? "Canal trail" : "Canal-bank road"))}</h3>
+      <table>${row("highway", p.highway + (p.service ? ` (${p.service})` : ""))}${row("surface", p.surface)}
+      ${row("access", p.access)}${row("motor_vehicle", p.motor_vehicle)}
+      ${p.connector ? row("Role", "Short spur linking a street to the canal") : ""}${row("OSM way", p.id)}</table>
+      <div class="links">${osmLink("way", p.id)}</div></div>`;
+  }
+  function canalHTML(p) {
+    const status = p.underground ? (p.covered === "yes" ? "Covered" : `Underground (tunnel=${p.tunnel})`) : "Open";
+    return `<div class="pop"><h3>${esc(p.name || "Unnamed canal")}</h3>
+      <table>${row("Operator", p.operator)}${row("Status", status)}${row("OSM way", p.id)}</table>
+      <div class="links">${osmLink("way", p.id)}</div></div>`;
+  }
+  function railHTML(p) {
+    return `<div class="pop"><h3>${esc(p.line)}</h3><table>${row("Name", p.name)}${row("OSM way", p.id)}</table>
+      <div class="links">${osmLink("way", p.id)}</div></div>`;
+  }
+
+  const SETTING = {
+    median: ["Tracks in street median", () => pal.railx],
+    shared: ["Streetcar shares the lane", () => pal.railOther],
+    row: ["Tracks on own right-of-way", () => pal.railOther],
+    gated: ["Gated crossing", () => pal.grey],
+  };
+  const SETTING_NOTE = {
+    median: "The tracks run down the middle of the street here. Turning drivers can mistake the trackway for a lane at intersections like this.",
+    shared: "Cars normally drive over these streetcar tracks; the risk is turning onto a track-only section nearby.",
+    row: "The tracks leave the street here, so a car crossing could turn along the trackway.",
+    gated: "Crossing gates are mapped here.",
+  };
+  function railXHTML(p) {
+    const [label, color] = SETTING[p.setting] || [p.setting, () => pal.railOther];
+    const ll = `${p.lat},${p.lon}`;
+    return `<div class="pop">
+      <h3>${esc(p.street || (p.driveway ? "Unnamed driveway" : "Unnamed street"))}</h3>
+      <span class="pill" style="background:${color()}">${label}</span>
+      <label class="collect${isCollected(p) ? " on" : ""}">
+        <input type="checkbox" data-node="${p.node}" ${isCollected(p) ? "checked" : ""}>
+        <span>Collected</span><small>${isCollected(p) ? esc(fmtDate(collected[p.node])) : ""}</small>
+      </label>
+      <table>
+        ${row("Line", p.line)}
+        ${row("Crossing road", p.street_class + (p.driveway ? " (driveway or parking)" : ""))}
+        ${row("Traffic signals", p.signals ? "Mapped" : "None mapped")}
+        ${row("Gates", p.gate ? p.gate : "None mapped")}
+        ${row("access", p.access)}
+        ${row("motor_vehicle", p.motor_vehicle)}
+      </table>
+      <p class="caveat">${esc(SETTING_NOTE[p.setting] || "")} Based on OpenStreetMap tags, which may be incomplete.</p>
+      <div class="links">
+        <a class="primary" href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${ll}" target="_blank" rel="noopener">Street View</a>
+        <a href="https://www.google.com/maps/search/?api=1&query=${ll}" target="_blank" rel="noopener">Google Maps</a>
+        <a href="https://www.google.com/maps/dir/?api=1&destination=${ll}" target="_blank" rel="noopener">Directions</a>
+        <a href="https://www.openstreetmap.org/node/${p.node}#map=19/${p.lat}/${p.lon}" target="_blank" rel="noopener">OpenStreetMap</a>
+      </div></div>`;
+  }
+  const pointHTML = p => p.kind === "rail" ? railXHTML(p) : openingHTML(p);
+
+  const card = $("card");
+  let selectRing = null, lastFeatureClick = 0;
+  function clearSelection() {
+    if (selectRing) { map.removeLayer(selectRing); selectRing = null; }
+    card.hidden = true;
+    map.closePopup();
+  }
+  function showDetail(html, latlng, ringIt) {
+    lastFeatureClick = Date.now();
+    if (selectRing) { map.removeLayer(selectRing); selectRing = null; }
+    if (ringIt) {
+      selectRing = L.circleMarker(latlng, { renderer: renderers.select, radius: touch ? 13 : 11, weight: 3,
+        color: pal.ring, fill: false, interactive: false }).addTo(map);
+    }
+    if (!phoneMQ.matches) {
+      L.popup({ maxWidth: 340, autoPanPaddingTopLeft: [360, 20] }).setLatLng(latlng).setContent(html).openOn(map);
+      return;
+    }
+    card.innerHTML = `<button class="close" aria-label="Close details">×</button>${html}`;
+    card.querySelector(".close").addEventListener("click", clearSelection);
+    card.hidden = false;
+    setSheet("peek");
+    requestAnimationFrame(() => {
+      map.panInside(latlng, { paddingTopLeft: [24, 24], paddingBottomRight: [24, card.offsetHeight + sheetPeekPx() + 24] });
+    });
+  }
+  map.on("click", () => { if (Date.now() - lastFeatureClick > 300) clearSelection(); });
+
+  // ---------- layers ----------
+  const split = (fc, pred) => ({ type: "FeatureCollection", features: fc.features.filter(pred) });
+  const openCanals = split(DATA.canals, f => !f.properties.underground);
+  const underCanals = split(DATA.canals, f => f.properties.underground);
+  const vmRail = split(DATA.rail, f => f.properties.line !== "Tempe Streetcar");
+  const streetcar = split(DATA.rail, f => f.properties.line === "Tempe Streetcar");
+  const openings = DATA.openings.features;
+  const railXings = DATA.rail_crossings ? DATA.rail_crossings.features : [];
+  const points = openings.concat(railXings);
+  // Which layer a point is drawn in
+  function pointLayer(p) {
+    if (isCollected(p)) return "collected";
+    if (p.kind === "rail") return p.setting === "gated" ? "railGated" : p.setting === "median" ? "railMedian" : "railOther";
+    return p.barrier ? "grey" : "red";
+  }
+  const inLayer = id => () => points.filter(f => pointLayer(f.properties) === id);
+  let showSpurs = saved.spurs !== false;
+
+  const line = (c, dash, w = 3, op = 1) =>
+    `<svg width="24" height="12"><line x1="1" y1="6" x2="23" y2="6" stroke="${c}" stroke-width="${w}" stroke-opacity="${op}" ${dash ? `stroke-dasharray="${dash}"` : ""}/></svg>`;
+  const dot = (c, s = pal.halo) => `<svg width="24" height="12"><circle cx="12" cy="6" r="4.6" fill="${c}" stroke="${s}" stroke-width="1.5"/></svg>`;
+
+  const defs = [
+    { id: "canals", group: "Canals", label: "Canals (open)", pane: "canals", data: openCanals, n: openCanals.features.length,
+      style: () => ({ color: pal.canal, weight: 6, opacity: .55 }), html: canalHTML, sw: () => line(pal.canal, null, 6, .55) },
+    { id: "under", label: "Canals (underground or covered)", pane: "canals", data: underCanals, n: underCanals.features.length,
+      style: () => ({ color: pal.under, weight: 3, opacity: .8, dashArray: "5 6" }), html: canalHTML, sw: () => line(pal.under, "4 3") },
+    { id: "roads", label: "Canal-bank roads", pane: "roads", data: DATA.roads, n: DATA.roads.features.length,
+      style: () => ({ color: pal.road, weight: 2.5, opacity: 1 }), html: p => roadHTML(p, "road"), sw: () => line(pal.road) },
+    { id: "trails", label: "Paved canal trails", pane: "trails", data: DATA.trails, n: DATA.trails.features.length,
+      style: () => ({ color: pal.trail, weight: 2.5, opacity: 1 }), html: p => roadHTML(p, "trail"), sw: () => line(pal.trail) },
+    { id: "red", label: "Openings: no barrier recorded", pane: "openings", points: inLayer("red"),
+      color: () => pal.red, sw: () => dot(pal.red) },
+    { id: "grey", label: "Openings: barrier mapped", pane: "openings", points: inLayer("grey"),
+      color: () => pal.grey, sw: () => dot(pal.grey) },
+    { id: "rail", group: "Light rail", label: "Valley Metro Rail", pane: "rail", data: vmRail, n: null,
+      style: () => ({ color: pal.rail, weight: 3.5, opacity: .9 }), html: railHTML, sw: () => line(pal.rail) },
+    { id: "streetcar", label: "Tempe Streetcar", pane: "rail", data: streetcar, n: null,
+      style: () => ({ color: pal.streetcar, weight: 3, opacity: .9 }), html: railHTML, sw: () => line(pal.streetcar) },
+    { id: "railMedian", label: "Crossings: tracks in street median", pane: "openings", points: inLayer("railMedian"),
+      color: () => pal.railx, sw: () => dot(pal.railx) },
+    { id: "railOther", label: "Crossings: own right-of-way or shared lane", pane: "openings", points: inLayer("railOther"),
+      color: () => pal.railOther, sw: () => dot(pal.railOther) },
+    { id: "railGated", label: "Crossings: gated", pane: "openings", points: inLayer("railGated"),
+      color: () => pal.grey, sw: () => dot(pal.grey) },
+    { id: "collected", group: "Your collection", label: "Collected", pane: "openings", points: inLayer("collected"),
+      color: () => pal.collected, stroke: () => pal.collectedStroke, sw: () => dot(pal.collected, pal.collectedStroke) },
+  ];
+  const passesSpur = p => p.kind === "rail" || showSpurs || !p.via_connector;
+  const shownPoints = def => def.points().filter(f => passesSpur(f.properties));
+  const byId = Object.fromEntries(defs.map(d => [d.id, d]));
+  // Collected markers are drawn first so the ones still to visit sit on top.
+  const drawOrder = [byId.collected].concat(defs.filter(d => d.id !== "collected"));
+
+  function build(def) {
+    if (def.points) {
+      const g = L.layerGroup();
+      shownPoints(def).forEach(f => {
+        const [lon, lat] = f.geometry.coordinates;
+        L.circleMarker([lat, lon], { renderer: renderers.openings, radius: touch ? 7 : 5.5, weight: 1.5,
+          color: def.stroke ? def.stroke() : pal.halo, fillColor: def.color(), fillOpacity: 1 })
+          .on("click", e => showDetail(pointHTML(f.properties), e.target.getLatLng(), true))
+          .addTo(g);
+      });
+      return g;
+    }
+    return L.geoJSON(def.data, {
+      renderer: renderers[def.pane],
+      style: def.style,
+      onEachFeature: (f, l) => l.on("click", e => showDetail(def.html(f.properties), e.latlng, false))
+    });
+  }
+
+  const state = {};
+  const layersEl = $("layers");
+  function renderLegend() {
+    layersEl.innerHTML = "";
+    defs.forEach(def => {
+      if (def.group) {
+        const g = document.createElement("div");
+        g.className = "group"; g.textContent = def.group;
+        layersEl.appendChild(g);
+      }
+      const lab = document.createElement("label");
+      lab.className = "layer";
+      const n = def.points ? shownPoints(def).length : def.n;
+      lab.innerHTML = `<input type="checkbox" id="ly-${def.id}" ${state[def.id].on ? "checked" : ""}>
+        <span class="sw">${def.sw()}</span><span class="name">${esc(def.label)}</span>
+        <span class="count">${n == null ? "" : n.toLocaleString()}</span>`;
+      lab.querySelector("input").addEventListener("change", e => {
+        const s = state[def.id];
+        s.on = e.target.checked;
+        s.on ? s.layer.addTo(map) : map.removeLayer(s.layer);
+        saved.layers = Object.fromEntries(defs.map(d => [d.id, state[d.id].on])); save();
+        updateNearby(); renderSummary();
+      });
+      layersEl.appendChild(lab);
+      if (def.id === "grey") {
+        const nSpur = openings.filter(f => f.properties.via_connector).length;
+        const spur = document.createElement("label");
+        spur.className = "layer sub";
+        spur.innerHTML = `<input type="checkbox" id="ly-spurs" ${showSpurs ? "checked" : ""}>
+          <span class="name">Include openings reached by a short spur (${nSpur.toLocaleString()})</span>`;
+        spur.querySelector("input").addEventListener("change", e => {
+          showSpurs = e.target.checked; saved.spurs = showSpurs; save(); rebuildPoints();
+        });
+        layersEl.appendChild(spur);
+      }
+    });
+  }
+  function rebuildPoints() {
+    drawOrder.filter(d => d.points).forEach(def => {
+      const s = state[def.id];
+      map.removeLayer(s.layer);
+      s.layer = build(def);
+      if (s.on) s.layer.addTo(map);
+    });
+    renderLegend(); renderSummary(); updateNearby();
+  }
+  function rebuildAll() {
+    drawOrder.forEach(def => {
+      const s = state[def.id];
+      if (s && s.layer) map.removeLayer(s.layer);
+      const on = s ? s.on : (saved.layers && def.id in saved.layers ? saved.layers[def.id] : true);
+      state[def.id] = { on, layer: build(def) };
+      if (on) state[def.id].layer.addTo(map);
+    });
+    renderLegend(); renderSummary(); updateNearby();
+  }
+
+  function visiblePoints() {
+    return points.filter(f => passesSpur(f.properties) && state[pointLayer(f.properties)].on);
+  }
+  function renderSummary() {
+    const total = points.filter(f => passesSpur(f.properties)).length;
+    const got = shownPoints(byId.collected).length, red = shownPoints(byId.red).length;
+    $("summary").innerHTML = `<b>${got.toLocaleString()}</b> of ${total.toLocaleString()} collected · <b class="r">${red.toLocaleString()}</b> no barrier recorded`;
+    $("collStat").innerHTML = `<b>${got.toLocaleString()}</b> of ${total.toLocaleString()} points collected`;
+    $("collBar").style.width = (total ? (got / total) * 100 : 0) + "%";
+  }
+
+  // ---------- nearest openings ----------
+  const nearEl = $("nearby");
+  function updateNearby() {
+    if (!state.red) return;
+    const c = map.getCenter();
+    const list = visiblePoints()
+      .map(f => ({ f, d: c.distanceTo([f.properties.lat, f.properties.lon]) }))
+      .sort((a, b) => a.d - b.d).slice(0, 6);
+    if (!list.length) { nearEl.innerHTML = `<p class="hint">Turn on a points layer to list nearby points.</p>`; return; }
+    nearEl.innerHTML = list.map(({ f, d }, i) => {
+      const p = f.properties;
+      const mi = d / 1609.344;
+      const dist = mi < 0.1 ? `${Math.round(d * 3.28084)} ft` : `${mi.toFixed(mi < 10 ? 1 : 0)} mi`;
+      return `<button class="near" data-i="${i}">
+        <span class="dot" style="background:${byId[pointLayer(p)].color()}"></span>
+        <span class="nm">${esc(p.street || "Unnamed street")}<small>${isCollected(p) ? "Collected · " : ""}${
+          p.kind === "rail" ? "Rail · " + esc((SETTING[p.setting] || [p.setting])[0])
+          : esc(p.canal || CONN[p.conn] || "") + (p.barrier ? " · " + esc(p.barrier_type.replace(/_/g, " ")) : "")}</small></span>
+        <span class="d">${dist}</span></button>`;
+    }).join("");
+    nearEl.querySelectorAll(".near").forEach(btn => btn.addEventListener("click", () => {
+      const p = list[+btn.dataset.i].f.properties;
+      const ll = L.latLng(p.lat, p.lon);
+      map.setView(ll, Math.max(map.getZoom(), 16), { animate: false });
+      showDetail(pointHTML(p), ll, true);
+    }));
+  }
+  map.on("moveend", () => {
+    updateNearby();
+    saved.view = { c: [+map.getCenter().lat.toFixed(5), +map.getCenter().lng.toFixed(5)], z: map.getZoom() }; save();
+  });
+
+  // ---------- basemap picker ----------
+  let currentBase = null;
+  const baseBtns = document.querySelectorAll("#basemaps button");
+  function setBase(name) {
+    if (currentBase) map.removeLayer(basemaps[currentBase]);
+    currentBase = name;
+    basemaps[name].addTo(map);
+    baseBtns.forEach(b => b.setAttribute("aria-pressed", b.dataset.b === name));
+  }
+  baseBtns.forEach(btn => btn.addEventListener("click", () => {
+    saved.base = btn.dataset.b; save(); setBase(btn.dataset.b);
+  }));
+  setBase(saved.base && basemaps[saved.base] ? saved.base : (darkMQ.matches ? "dark" : "streets"));
+
+  darkMQ.addEventListener("change", e => {
+    pal = PAL[e.matches ? "dark" : "light"]; setPalVar();
+    if (!saved.base) setBase(e.matches ? "dark" : "streets");
+    clearSelection(); rebuildAll();
+  });
+
+  // ---------- locate me ----------
+  let meLayer = null;
+  const Locate = L.Control.extend({
+    options: { position: "topright" },
+    onAdd() {
+      const div = L.DomUtil.create("div", "leaflet-bar");
+      div.innerHTML = `<button class="fab" id="locate" aria-label="Show my location" title="Show my location">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/></svg></button>`;
+      L.DomEvent.disableClickPropagation(div);
+      div.firstChild.addEventListener("click", locate);
+      return div;
+    }
+  });
+  new Locate().addTo(map);
+  function locate() {
+    const btn = $("locate");
+    if (!navigator.geolocation) return toast("This browser can’t share your location.");
+    if (!window.isSecureContext) return toast("Location needs the page to be opened over https.");
+    btn.classList.add("on");
+    navigator.geolocation.getCurrentPosition(pos => {
+      const ll = L.latLng(pos.coords.latitude, pos.coords.longitude);
+      if (meLayer) map.removeLayer(meLayer);
+      meLayer = L.layerGroup([
+        L.circle(ll, { radius: pos.coords.accuracy, renderer: renderers.select, color: pal.me, weight: 1, fillOpacity: .12, interactive: false }),
+        L.circleMarker(ll, { radius: 8, renderer: renderers.select, color: "#ffffff", weight: 3, fillColor: pal.me, fillOpacity: 1, interactive: false })
+      ]).addTo(map);
+      map.setView(ll, Math.max(map.getZoom(), 15));
+      if (!bounds.contains(ll)) toast("You’re outside the area this map covers.");
+    }, err => {
+      btn.classList.remove("on");
+      toast(err.code === 1 ? "Location permission was denied. Allow it in your browser settings to use this." : "Couldn’t get your location. Try again outdoors or with Wi-Fi on.");
+    }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 });
+  }
+  let toastTimer;
+  function toast(msg) {
+    const t = $("toast");
+    t.textContent = msg; t.hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 4000);
+  }
+
+  // ---------- bottom sheet ----------
+  const sheet = $("sheet"), head = $("sheetHead"), sheetBtn = $("sheetBtn");
+  const sheetPeekPx = () => phoneMQ.matches ? head.offsetHeight + $("safeProbe").offsetHeight : 0;
+  const syncPeek = () => document.documentElement.style.setProperty("--peek-h", head.offsetHeight + "px");
+  syncPeek();
+  if (window.ResizeObserver) new ResizeObserver(syncPeek).observe(head); else window.addEventListener("resize", syncPeek);
+  function setSheet(s) {
+    sheet.dataset.state = s;
+    sheetBtn.setAttribute("aria-expanded", s === "open");
+    sheetBtn.setAttribute("aria-label", s === "open" ? "Hide map controls" : "Show map controls");
+    if (s === "open") { card.hidden = true; updateNearby(); }
+  }
+  let drag = null;
+  head.addEventListener("pointerdown", e => {
+    if (!phoneMQ.matches) return;
+    drag = { y: e.clientY, start: sheet.dataset.state, moved: false, h: sheet.offsetHeight, peek: sheetPeekPx() };
+    head.setPointerCapture(e.pointerId);
+  });
+  head.addEventListener("pointermove", e => {
+    if (!drag) return;
+    const dy = e.clientY - drag.y;
+    if (Math.abs(dy) > 6) drag.moved = true;
+    if (!drag.moved) return;
+    const base = drag.start === "open" ? 0 : drag.h - drag.peek;
+    const y = Math.min(drag.h - drag.peek, Math.max(0, base + dy));
+    sheet.style.transition = "none";
+    sheet.style.transform = `translateY(${y}px)`;
+    drag.y1 = y;
+  });
+  const endDrag = () => {
+    if (!drag) return;
+    sheet.style.transition = ""; sheet.style.transform = "";
+    if (!drag.moved) setSheet(sheet.dataset.state === "open" ? "peek" : "open");
+    else setSheet(drag.y1 < (drag.h - drag.peek) / 2 ? "open" : "peek");
+    drag = null;
+  };
+  head.addEventListener("pointerup", endDrag);
+  head.addEventListener("pointercancel", endDrag);
+  sheetBtn.addEventListener("click", e => { if (!phoneMQ.matches) return; e.stopPropagation(); });
+  sheetBtn.addEventListener("keydown", e => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSheet(sheet.dataset.state === "open" ? "peek" : "open"); }
+  });
+  phoneMQ.addEventListener("change", () => { clearSelection(); setSheet("peek"); });
+  const collapseOnPhone = () => { if (phoneMQ.matches) setSheet("peek"); };
+
+  // ---------- jump to ----------
+  const cities = [
+    ["Surprise", 33.6292, -112.3680], ["Glendale", 33.5387, -112.1860], ["Peoria", 33.5806, -112.2374],
+    ["Phoenix", 33.4484, -112.0740], ["Scottsdale", 33.4942, -111.9261], ["Tempe", 33.4255, -111.9400],
+    ["Mesa", 33.4152, -111.8315], ["Chandler", 33.3062, -111.8413], ["Gilbert", 33.3528, -111.7890],
+    ["Avondale", 33.4356, -112.3496]
+  ];
+  const citiesEl = $("cities");
+  cities.forEach(([name, lat, lon]) => {
+    const btn = document.createElement("button");
+    btn.className = "btn"; btn.textContent = name;
+    btn.addEventListener("click", () => { clearSelection(); map.setView([lat, lon], 13); collapseOnPhone(); });
+    citiesEl.appendChild(btn);
+  });
+  const all = document.createElement("button");
+  all.className = "btn wide"; all.textContent = "Whole valley";
+  all.addEventListener("click", () => { clearSelection(); map.fitBounds(bounds); collapseOnPhone(); });
+  citiesEl.appendChild(all);
+
+  // ---------- export ----------
+  function download(name, text, type) {
+    const blob = new Blob([text], { type });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  }
+  $("exp-geojson").addEventListener("click", () => {
+    download(`canal-rail-points-${DATA.meta.extract}.geojson`,
+      JSON.stringify({ type: "FeatureCollection", features: visiblePoints().map(f => ({ ...f,
+        properties: { ...f.properties, collected: isCollected(f.properties), collected_on: collected[f.properties.node] || null } })) }, null, 1),
+      "application/geo+json");
+  });
+  $("exp-csv").addEventListener("click", () => {
+    const cols = ["kind", "node", "lat", "lon", "street", "street_class", "conn", "via_connector", "canal_hw", "canal_road",
+                  "canal", "barrier", "barrier_type", "barrier_m", "line", "setting", "signals", "gate", "driveway",
+                  "access", "motor_vehicle"];
+    const q = v => v == null ? "" : /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v);
+    const lines = [cols.concat("collected", "collected_on", "street_view", "osm").join(",")];
+    visiblePoints().forEach(f => {
+      const p = f.properties;
+      lines.push(cols.map(c => q(p[c])).concat(
+        isCollected(p), collected[p.node] ? collected[p.node].slice(0, 10) : "",
+        `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${p.lat},${p.lon}`,
+        `https://www.openstreetmap.org/node/${p.node}`).join(","));
+    });
+    download(`canal-rail-points-${DATA.meta.extract}.csv`, lines.join("\r\n"), "text/csv");
+  });
+
+  // ---------- collecting ----------
+  // One handler for every "Collected" checkbox, whether it sits in a phone card or a desktop popup.
+  document.addEventListener("change", e => {
+    const el = e.target;
+    if (!el.matches || !el.matches(".collect input")) return;
+    const node = el.dataset.node;
+    if (el.checked) collected[node] = new Date().toISOString(); else delete collected[node];
+    saveCollected();
+    const lab = el.closest(".collect");
+    lab.classList.toggle("on", el.checked);
+    lab.querySelector("small").textContent = el.checked ? fmtDate(collected[node]) : "";
+    rebuildPoints();
+  });
+
+  $("coll-export").addEventListener("click", () => {
+    const n = Object.keys(collected).length;
+    if (!n) return toast("Nothing collected yet. Open a point and tick Collected.");
+    download(`canal-collection-${new Date().toISOString().slice(0, 10)}.json`,
+      JSON.stringify({ app: "valley-canal-roads", version: 1, exported: new Date().toISOString(), collected }, null, 1),
+      "application/json");
+    toast(`Backed up ${n} collected point${n === 1 ? "" : "s"}.`);
+  });
+  $("coll-import").addEventListener("click", () => $("coll-file").click());
+  $("coll-file").addEventListener("change", e => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    file.text().then(text => {
+      let incoming;
+      try { incoming = JSON.parse(text).collected; } catch (err) { incoming = null; }
+      if (!incoming || typeof incoming !== "object") {
+        return toast("That file isn’t a Valley Canal Roads backup. Choose the .json file made with Back up.");
+      }
+      let added = 0;
+      Object.entries(incoming).forEach(([node, when]) => {
+        if (!/^\d+$/.test(node)) return;
+        if (!(node in collected)) { collected[node] = String(when); added++; }
+        else if (String(when) < collected[node]) collected[node] = String(when);  // keep the earliest date
+      });
+      saveCollected(); rebuildPoints(); clearSelection();
+      toast(`Restored ${Object.keys(incoming).length} points (${added} new).`);
+    });
+  });
+
+  // ---------- meta ----------
+  L.DomEvent.disableClickPropagation(sheet);
+  L.DomEvent.disableScrollPropagation(sheet);
+  L.DomEvent.disableClickPropagation(card);
+  L.DomEvent.disableScrollPropagation(card);
+  const m = DATA.meta, pr = m.params;
+  $("meta").textContent =
+    `OpenStreetMap data from the Geofabrik Arizona extract of ${m.extract}, built ${m.built}. ` +
+    `A road or trail counts as canal-side when at least ${Math.round(pr.along_frac * 100)}% of its sample points are within ` +
+    `${pr.along_m} m of an open canal and it is at least ${pr.min_len_m} m long. Barriers are searched for up to ` +
+    `${pr.barrier_walk_m} m along the canal road from each junction. ` +
+    (pr.rail_parallel_m ? `Rail crossings are places where a car road meets the tracks, merged within ${pr.rail_cluster_m} m; ` +
+      `the tracks count as being in a street median when a road runs within ${pr.rail_parallel_m} m of them on the approaches.` : "");
+
+  rebuildAll();
+
+  // Offline support when served over https (the installable web app); skipped for file://.
+  if ("serviceWorker" in navigator && window.isSecureContext && location.protocol !== "file:" && window.VCR_PWA) {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  }
+})();
+</script>
+</body>
+</html>
