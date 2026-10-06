@@ -2,3 +2,4 @@
 *.part
 __pycache__/
 .claude/
+*.pdf
