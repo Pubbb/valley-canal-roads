@@ -208,6 +208,14 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
   background: var(--panel); color: var(--text); border: 2px solid; font: 700 12px/1 var(--font); box-shadow: 0 1px 4px rgba(0,0,0,.25); }
 .zlabel.mine span { background: var(--accent); color: var(--accent-text); border-color: var(--accent) !important; }
 
+/* ---------- shifts ---------- */
+.shiftpill { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .04em; padding: 1px 6px;
+  border-radius: 6px; background: var(--hover); color: var(--text); margin-left: 4px; vertical-align: 1px; }
+.chip .sh { border: 1px solid var(--border); background: var(--panel); border-radius: 6px; padding: 1px 6px; font-size: 11px;
+  font-weight: 700; cursor: pointer; width: auto; height: auto; }
+.othershift { font-size: 13px; color: var(--muted); margin: -4px 0 10px; }
+.seg.small button { padding: 6px 4px; min-height: 36px; font-size: 14px; }
+
 /* ---------- can't access ---------- */
 .blocked { border: 1px solid var(--border); border-left: 4px solid var(--text); border-radius: 10px; padding: 8px 10px; margin: 0 0 10px; font-size: 14px; }
 .blocked small { display: block; color: var(--muted); font-size: 12.5px; }
@@ -352,7 +360,26 @@ const TEAM_CONFIG = {"apiKey": "AIzaSyCChaId316tMPnq3eewiVjT0R2cgwvgMvM", "authD
   // Shared team state. When signed in to a team, "done" comes from the team instead of this device.
   const team = { active: false, code: null, name: null, settings: null, done: {}, day: {}, admin: false };
   // A team "done" entry is either completed ({by, at}) or can't access ({by, at, status: "blocked", reason, note}).
-  const entryOf = p => team.done["n" + p.node];
+  // Shifts: with AM/PM tracking on, each point has an AM slot (a<node>) and a PM slot (p<node>);
+  // with it off, one slot (n<node>). Entries saved in n<node> count toward the shift their Arizona time
+  // falls in (5 am to 5 pm = AM), so turning tracking on or off never loses work.
+  const azHour = iso => Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/Phoenix", hour: "numeric", hourCycle: "h23" }).format(new Date(iso)));
+  const shiftOfEntry = e => e.shift || (azHour(e.at) >= 5 && azHour(e.at) < 17 ? "am" : "pm");
+  const SHIFT = { am: "AM", pm: "PM" };
+  const shiftsOn = () => !!(team.settings && team.settings.shifts);
+  const myShift = () => ((team.settings && team.settings.shiftOf) || {})[team.name] || null;
+  const curShift = () => shiftsOn() ? (team.admin && team.shiftView) || myShift() || "am" : null;
+  const slotKey = (node, sh) => !shiftsOn() ? "n" + node : (sh === "pm" ? "p" : "a") + node;
+  const dayKey = (zid, sh) => shiftsOn() && sh === "pm" ? "pm_" + zid : zid;
+  function entryFor(node, sh = curShift()) {
+    const d = team.done;
+    if (!shiftsOn()) return d["n" + node] || d["a" + node] || d["p" + node];
+    const own = d[(sh === "pm" ? "p" : "a") + node];
+    if (own) return own;
+    const legacy = d["n" + node];
+    return legacy && shiftOfEntry(legacy) === sh ? legacy : undefined;
+  }
+  const entryOf = p => entryFor(p.node);
   const isBlocked = p => team.active && !!entryOf(p) && entryOf(p).status === "blocked";
   const isCollected = p => team.active ? !!entryOf(p) && entryOf(p).status !== "blocked"
     : Object.prototype.hasOwnProperty.call(collected, p.node);
@@ -479,11 +506,17 @@ const TEAM_CONFIG = {"apiKey": "AIzaSyCChaId316tMPnq3eewiVjT0R2cgwvgMvM", "authD
       if (!team.inScope(p)) return `<p class="caveat">Not on the team’s work list.</p>`;
       const d = entryOf(p), blocked = isBlocked(p);
       const locked = on && d.by !== team.name && !team.admin;
+      const sh = curShift();
       let html = `<label class="collect${on ? " on" : ""}">
         <input type="checkbox" data-node="${p.node}" ${on ? "checked" : ""} ${locked ? "disabled" : ""}>
-        <span>Completed</span><small>${on ? esc(`${d.by} · ${fmtDate(d.at)}`) : ""}</small></label>`;
+        <span>Completed${sh ? `<span class="shiftpill">${SHIFT[sh]}</span>` : ""}</span><small>${on ? esc(`${d.by} · ${fmtDate(d.at)}`) : ""}</small></label>`;
+      if (sh) {
+        const other = sh === "am" ? "pm" : "am", oe = entryFor(p.node, other);
+        html = html + `<p class="othershift">${SHIFT[other]} shift: ${oe ? (oe.status === "blocked" ? "can’t access" : "completed")
+          + ` by ${esc(oe.by)} · ${esc(fmtDate(oe.at))}` : "not done yet"}</p>`;
+      }
       if (blocked) {
-        html += `<div class="blocked"><b>Can’t access</b> · ${esc(REASONS[d.reason] || d.reason || "")}
+        html += `<div class="blocked"><b>Can’t access</b>${sh ? `<span class="shiftpill">${SHIFT[sh]}</span>` : ""} · ${esc(REASONS[d.reason] || d.reason || "")}
           <small>${esc(d.by)} · ${esc(fmtDate(d.at))}</small>${d.note ? `<p>${esc(d.note)}</p>` : ""}
           ${d.by === team.name || team.admin ? `<button class="linkbtn" data-act="reopen" data-node="${p.node}">Reopen this point</button>` : ""}</div>`;
       } else if (!on) {
@@ -1057,7 +1090,11 @@ const TEAM_CONFIG = {"apiKey": "AIzaSyCChaId316tMPnq3eewiVjT0R2cgwvgMvM", "authD
     return {
       watch(path, cb) { const sb = { k: key(path), path, cb }; subs.add(sb); setTimeout(() => cb(read(path), false)); return () => subs.delete(sb); },
       get: path => Promise.resolve(read(path)),
-      merge: (path, data) => write(path, cur => Object.assign(cur, data)),
+      merge: (path, data) => write(path, cur => {  // one level deep, like Firestore's merge for maps
+        for (const [k, v] of Object.entries(data)) {
+          cur[k] = v && typeof v === "object" && !Array.isArray(v) && cur[k] && typeof cur[k] === "object" ? Object.assign({}, cur[k], v) : v;
+        }
+      }),
       setField: (path, f, v) => write(path, cur => { if (v === undefined) delete cur[f]; else cur[f] = v; }),
       listAdd: (path, f, v) => write(path, cur => { cur[f] = Array.from(new Set([...(cur[f] || []), v])); }),
       listRemove: (path, f, v) => write(path, cur => { cur[f] = (cur[f] || []).filter(x => x !== v); }),
@@ -1098,16 +1135,16 @@ const TEAM_CONFIG = {"apiKey": "AIzaSyCChaId316tMPnq3eewiVjT0R2cgwvgMvM", "authD
       const sc = this.scope();
       return sc === "red" ? !p.barrier : sc === "drive" ? p.drive === "drivable" : true;
     },
-    doneCount(z) { return z.nodes.filter(n => this.done["n" + n]).length; },  // completed or can't access
-    blockedCount(z) { return z.nodes.filter(n => (this.done["n" + n] || {}).status === "blocked").length; },
-    progress(z) {
-      const b = this.blockedCount(z);
-      return `${this.doneCount(z)} of ${z.nodes.length} done` + (b ? ` · ${b} can’t access` : "");
+    doneCount(z, sh = curShift()) { return z.nodes.filter(n => entryFor(n, sh)).length; },  // completed or can't access
+    blockedCount(z, sh = curShift()) { return z.nodes.filter(n => (entryFor(n, sh) || {}).status === "blocked").length; },
+    progress(z, sh = curShift()) {
+      const b = this.blockedCount(z, sh);
+      return (sh ? SHIFT[sh] + " " : "") + `${this.doneCount(z, sh)} of ${z.nodes.length} done` + (b ? ` · ${b} can’t access` : "");
     },
-    complete(z) { return this.doneCount(z) === z.nodes.length; },
-    assignee(z) { const a = this.day[z.id]; return a ? a.to : null; },
+    complete(z, sh = curShift()) { return this.doneCount(z, sh) === z.nodes.length; },
+    assignee(z, sh = curShift()) { const a = this.day[dayKey(z.id, sh)]; return a ? a.to : null; },
     members() { return ((this.settings && this.settings.members) || []).slice().sort((a, b) => a.localeCompare(b)); },
-    myZones() { return this.zones().filter(z => this.assignee(z) === this.name); },
+    myZones() { const sh = myShift() || curShift(); return this.zones().filter(z => this.assignee(z, sh) === this.name); },
   });
 
   function makeSync(code) {
@@ -1134,6 +1171,7 @@ const TEAM_CONFIG = {"apiKey": "AIzaSyCChaId316tMPnq3eewiVjT0R2cgwvgMvM", "authD
       if (d) team.status = "ok";
       else if (!fromCache) team.status = "missing";
       if (d && team.name && !(d.members || []).includes(team.name)) team.name = null;  // removed from the team
+      if (!shiftsOn()) team.shiftView = null;
       refresh(true);
     }, onErr));
     team.unsubs.push(team.sync.watch(["state", "done"], d => { team.done = d || {}; refresh(true); }, onErr));
@@ -1206,25 +1244,27 @@ const TEAM_CONFIG = {"apiKey": "AIzaSyCChaId316tMPnq3eewiVjT0R2cgwvgMvM", "authD
     const [status, color] = zoneStatus(z);
     const who = team.assignee(z), done = team.doneCount(z), complete = team.complete(z);
     let actions = "";
-    if (!complete && !who) actions += `<button class="btn primary" data-act="claim" data-zone="${z.id}">Claim this zone for today</button>`;
+    const shTxt = curShift() ? ` (${SHIFT[curShift()]})` : "";
+    if (!complete && !who) actions += `<button class="btn primary" data-act="claim" data-zone="${z.id}">Claim this zone for today${shTxt}</button>`;
     if (who && who === team.name) actions += `<button class="btn center" data-act="release" data-zone="${z.id}">Release this zone</button>`;
     if (team.admin) {
       actions += `<div class="inline"><select id="assign-${z.id}" aria-label="Assign zone ${z.num} to">
         <option value="">Nobody</option>${team.members().map(m => `<option ${m === who ? "selected" : ""}>${esc(m)}</option>`).join("")}
-        </select><button class="btn" data-act="assign" data-zone="${z.id}">Assign</button></div>`;
+        </select><button class="btn" data-act="assign" data-zone="${z.id}">Assign${shTxt}</button></div>`;
     }
     // Points in the zone's best driving order (worked out when the map was built)
     const pts = (z.route || z.nodes).map(n => opByNode.get(n)).filter(Boolean);
-    const todo = pts.filter(p => !team.done["n" + p.node]);
+    const todo = pts.filter(p => !entryFor(p.node));
     const route = routeURL(todo.length ? todo : pts);
     const miles = z.km != null ? Math.max(0.1, z.km / 1.609).toFixed(1) : null;
     return `<div class="pop">
       <h3>Zone ${z.num}</h3>
       <span class="pill" style="background:${color}">${esc(status)}</span>
       <p class="zmeta">${esc(z.label || "Canal openings")} · ${esc(team.progress(z))}${miles ? ` · about ${miles} mi between points` : ""}</p>
+      ${shiftsOn() ? `<p class="zmeta">${["am", "pm"].map(x => `${esc(team.progress(z, x))}${team.assignee(z, x) ? " · " + esc(team.assignee(z, x)) : " · nobody yet"}`).join("<br>")}</p>` : ""}
       ${actions ? `<div class="zactions">${actions}</div>` : ""}
       <div class="zpts">${pts.map(p => {
-        const d = team.done["n" + p.node], bl = d && d.status === "blocked";
+        const d = entryFor(p.node), bl = d && d.status === "blocked";
         return `<button data-act="point" data-node="${p.node}"><span class="dot" style="background:${bl ? pal.blocked : d ? pal.collected : p.barrier ? pal.grey : pal.red}"></span>
           <span class="nm">${esc(p.street || "Unnamed street")}</span><small>${bl ? "✕ " + esc(REASONS[d.reason] || "Can’t access") : d ? "✓ " + esc(d.by) : ""}</small></button>`;
       }).join("")}</div>
@@ -1246,13 +1286,22 @@ const TEAM_CONFIG = {"apiKey": "AIzaSyCChaId316tMPnq3eewiVjT0R2cgwvgMvM", "authD
   }
 
   // ----- actions -----
+  // Write (or clear) this point's slot for the current shift. Clearing also removes an older entry that
+  // counted toward this shift, so an untick always sticks.
+  function writeSlot(node, value) {
+    const sh = curShift();
+    const main = slotKey(node, sh), clear = [];
+    if (value) value.shift = sh || shiftOfEntry(value);
+    else if (!shiftsOn()) clear.push("a" + node, "p" + node);
+    else if (team.done["n" + node] && shiftOfEntry(team.done["n" + node]) === sh) clear.push("n" + node);
+    if (value) team.done[main] = value; else delete team.done[main];  // show it right away; the listener confirms
+    clear.forEach(f => delete team.done[f]);
+    [main, ...clear].forEach((f, i) => team.sync.setField(["state", "done"], f, i === 0 ? value : undefined).catch(onErr));
+  }
   team.toggleDone = function (node, on) {
-    const field = "n" + node;
-    const value = on ? { by: team.name, at: new Date().toISOString() } : undefined;
-    if (on) team.done[field] = value; else delete team.done[field];  // show it right away; the listener confirms
+    writeSlot(node, on ? { by: team.name, at: new Date().toISOString() } : undefined);
     refresh(true);
     reshowPoint(node);
-    team.sync.setField(["state", "done"], field, value).catch(onErr);
     if (on) {
       const z = team.zones().find(zz => zz.nodes.includes(Number(node)));
       if (z && team.complete(z)) toast(`Zone ${z.num} is complete. Nice work.`);
@@ -1266,11 +1315,9 @@ const TEAM_CONFIG = {"apiKey": "AIzaSyCChaId316tMPnq3eewiVjT0R2cgwvgMvM", "authD
     if (el && el.querySelector(`[data-node="${node}"]`)) showDetail(pointHTML(p), L.latLng(p.lat, p.lon), true);
   }
   function setBlocked(node, value) {
-    const field = "n" + node;
-    if (value) team.done[field] = value; else delete team.done[field];
+    writeSlot(node, value);
     refresh(true);
     reshowPoint(node);
-    team.sync.setField(["state", "done"], field, value).catch(onErr);
     if (value) {
       const z = team.zones().find(zz => zz.nodes.includes(Number(node)));
       toast(z && team.complete(z) ? `Marked can’t access. Zone ${z.num} is now closed.` : "Marked can’t access.");
@@ -1279,7 +1326,7 @@ const TEAM_CONFIG = {"apiKey": "AIzaSyCChaId316tMPnq3eewiVjT0R2cgwvgMvM", "authD
 
   async function claimZone(z, who, override) {
     try {
-      await team.sync.claim(["days", team.today], z.id, { to: who, at: new Date().toISOString(), by: team.name }, override);
+      await team.sync.claim(["days", team.today], dayKey(z.id, curShift()), { to: who, at: new Date().toISOString(), by: team.name }, override);
       toast(who === team.name ? `Zone ${z.num} is yours for today.` : `Zone ${z.num} assigned to ${who}.`);
       return true;
     } catch (err) {
@@ -1300,10 +1347,11 @@ const TEAM_CONFIG = {"apiKey": "AIzaSyCChaId316tMPnq3eewiVjT0R2cgwvgMvM", "authD
     try {
       const y = await team.sync.get(["days", phoenixDay(-1)]) || {};
       let n = 0;
-      for (const [zid, a] of Object.entries(y)) {
-        const z = team.zoneById(zid);
-        if (!z || team.complete(z) || team.day[zid] || !team.members().includes(a.to)) continue;
-        await team.sync.setField(["days", team.today], zid, { to: a.to, at: new Date().toISOString(), by: team.name });
+      for (const [key, a] of Object.entries(y)) {
+        const sh = key.startsWith("pm_") ? "pm" : "am", z = team.zoneById(key.replace(/^pm_/, ""));
+        if (!z || (key.startsWith("pm_") && !shiftsOn())) continue;
+        if (team.complete(z, shiftsOn() ? sh : null) || team.day[key] || !team.members().includes(a.to)) continue;
+        await team.sync.setField(["days", team.today], key, { to: a.to, at: new Date().toISOString(), by: team.name });
         n++;
       }
       toast(n ? `Carried over ${n} unfinished zone${n === 1 ? "" : "s"} from yesterday.` : "Nothing unfinished to carry over from yesterday.");
@@ -1316,10 +1364,10 @@ const TEAM_CONFIG = {"apiKey": "AIzaSyCChaId316tMPnq3eewiVjT0R2cgwvgMvM", "authD
     const act = el.dataset.act, z = el.dataset.zone && team.zoneById(el.dataset.zone);
     if (act === "fit" || act === "zone") e.preventDefault();
     if (act === "claim" && z) claimZone(z, team.name, false).then(ok => ok && showZone(z));
-    else if (act === "release" && z) team.sync.setField(["days", team.today], z.id, undefined).then(() => { toast(`Released zone ${z.num}.`); clearSelection(); }).catch(onErr);
+    else if (act === "release" && z) team.sync.setField(["days", team.today], dayKey(z.id, curShift()), undefined).then(() => { toast(`Released zone ${z.num}.`); clearSelection(); }).catch(onErr);
     else if (act === "assign" && z) {
       const who = $("assign-" + z.id).value;
-      (who ? claimZone(z, who, true) : team.sync.setField(["days", team.today], z.id, undefined).then(() => toast(`Zone ${z.num} unassigned.`)))
+      (who ? claimZone(z, who, true) : team.sync.setField(["days", team.today], dayKey(z.id, curShift()), undefined).then(() => toast(`Zone ${z.num} unassigned.`)))
         .then(() => clearSelection()).catch(onErr);
     }
     else if (act === "point") {
@@ -1336,6 +1384,14 @@ const TEAM_CONFIG = {"apiKey": "AIzaSyCChaId316tMPnq3eewiVjT0R2cgwvgMvM", "authD
     else if (act === "admin") { team.ui = "pin"; renderTeam(); }
     else if (act === "lock") { team.admin = false; refresh(true); }
     else if (act === "carry") carryOver();
+    else if (act === "my-shift") team.sync.merge(["state", "settings"], { shiftOf: { [team.name]: el.dataset.shift } }).catch(onErr);
+    else if (act === "change-shift") team.sync.merge(["state", "settings"], { shiftOf: { [team.name]: myShift() === "pm" ? "am" : "pm" } })
+      .then(() => toast(`You’re now on the ${SHIFT[myShift() === "pm" ? "am" : "pm"]} shift.`)).catch(onErr);
+    else if (act === "cycle-shift") {
+      const cur = ((team.settings && team.settings.shiftOf) || {})[el.dataset.name];
+      team.sync.merge(["state", "settings"], { shiftOf: { [el.dataset.name]: cur === "am" ? "pm" : "am" } }).catch(onErr);
+    }
+    else if (act === "view-shift") { team.shiftView = el.dataset.shift; clearSelection(); refresh(true); }
     else if (act === "reopen") { setBlocked(el.dataset.node, undefined); toast("Point reopened."); }
     else if (act === "copy-invite") {
       const link = inviteLink();
@@ -1388,6 +1444,8 @@ const TEAM_CONFIG = {"apiKey": "AIzaSyCChaId316tMPnq3eewiVjT0R2cgwvgMvM", "authD
   });
   document.addEventListener("change", e => {
     if (e.target.id === "t-scope-live") team.sync.merge(["state", "settings"], { scope: e.target.value }).catch(onErr);
+    if (e.target.id === "t-shifts") team.sync.merge(["state", "settings"], { shifts: e.target.checked })
+      .then(() => toast(e.target.checked ? "AM/PM tracking is on. Set each person’s shift under Crew." : "AM/PM tracking is off.")).catch(onErr);
     if (e.target.id === "ly-zones") { team.showZones = e.target.checked; saved.zones = team.showZones; save(); restack(); syncLabels(); }
   });
 
@@ -1434,13 +1492,18 @@ const TEAM_CONFIG = {"apiKey": "AIzaSyCChaId316tMPnq3eewiVjT0R2cgwvgMvM", "authD
       return;
     }
     const mine = team.myZones();
+    const mySh = shiftsOn() ? myShift() || curShift() : null;  // "your zones" always follow your own shift
     const zoneRow = z => {
-      const d = team.doneCount(z), n = z.nodes.length, ok = d === n;
+      const d = team.doneCount(z, mySh), n = z.nodes.length, ok = d === n;
       return `<button class="zrow" data-act="zone" data-zone="${z.id}"><span class="zn" style="background:${ok ? pal.trail : accent()}">${z.num}</span>
-        <span class="nm">${esc(z.label || "Canal openings")}<small>${esc(team.progress(z))}</small></span>${ok ? `<span class="ok">✓</span>` : ""}</button>`;
+        <span class="nm">${esc(z.label || "Canal openings")}<small>${esc(team.progress(z, mySh))}</small></span>${ok ? `<span class="ok">✓</span>` : ""}</button>`;
     };
     const byPerson = {};
-    team.zones().forEach(z => { const w = team.assignee(z); if (w) (byPerson[w] = byPerson[w] || []).push(z); });
+    const shiftList = shiftsOn() ? ["am", "pm"] : [null];
+    team.zones().forEach(z => shiftList.forEach(sh => {
+      const w = team.assignee(z, sh);
+      if (w) (byPerson[w] = byPerson[w] || []).push([z, sh]);
+    }));
     const openCount = team.zones().filter(z => !team.assignee(z) && !team.complete(z)).length;
     const inScope = openings.filter(f => team.inScope(f.properties));
     const doneN = inScope.filter(f => isCollected(f.properties)).length;
@@ -1450,18 +1513,28 @@ const TEAM_CONFIG = {"apiKey": "AIzaSyCChaId316tMPnq3eewiVjT0R2cgwvgMvM", "authD
     const doneZones = team.zones().filter(z => team.complete(z)).length;
     teamEl.innerHTML = `
       <div class="who"><span class="avatar" style="background:${personColor(team.name)}">${esc(team.name.slice(0, 1).toUpperCase())}</span>
-        <div><b>${esc(team.name)}</b><small>Team ${esc(team.code)}${team.admin ? " · team lead" : ""}</small></div>
+        <div><b>${esc(team.name)}</b>${shiftsOn() && myShift() ? `<span class="shiftpill">${SHIFT[myShift()]}</span>` : ""}<small>Team ${esc(team.code)}${team.admin ? " · team lead" : ""}</small></div>
         <button class="linkbtn" data-act="switch">Switch</button></div>
-      <p class="sub-h">Your zones · ${esc(prettyDay(team.today))}</p>
+      ${shiftsOn() && !myShift() ? `<div class="teambox" style="margin-top:10px"><p><b>Which shift are you on?</b></p>
+        <div class="seg"><button data-act="my-shift" data-shift="am">AM (day)</button><button data-act="my-shift" data-shift="pm">PM (night)</button></div></div>` : ""}
+      ${shiftsOn() && myShift() ? `<button class="linkbtn" data-act="change-shift">Switch to the ${SHIFT[myShift() === "pm" ? "am" : "pm"]} shift</button>` : ""}
+      ${shiftsOn() && team.admin ? `<p class="sub-h">Showing on the map</p><div class="seg small">
+        ${["am", "pm"].map(x => `<button data-act="view-shift" data-shift="${x}" aria-pressed="${curShift() === x}">${SHIFT[x]} shift</button>`).join("")}</div>` : ""}
+      <p class="sub-h">Your zones · ${esc(prettyDay(team.today))}${shiftsOn() ? " · " + SHIFT[myShift() || curShift()] : ""}</p>
       ${mine.length ? mine.map(zoneRow).join("") : `<p class="muted">You don’t have a zone today.</p>`}
       ${openCount ? `<button class="btn primary" style="width:100%;margin-top:8px" data-act="claim-near">Claim the nearest open zone</button>` : ""}
       <p class="hint">Claims the closest open zone to the centre of the map. Tap a zone on the map to see its points or claim it.</p>
       <p class="sub-h">Team today</p>
       <div class="people">${Object.keys(byPerson).sort().map(w => `<div class="p"><span class="dot" style="background:${personColor(w)}"></span><b>${esc(w)}</b>
-        <span>${byPerson[w].map(z => `Zone ${z.num} (${team.doneCount(z)}/${z.nodes.length})`).join(", ")}</span></div>`).join("") || `<span class="muted">No zones claimed yet today.</span>`}
+        <span>${byPerson[w].map(([z, sh]) => `Zone ${z.num}${sh ? " " + SHIFT[sh] : ""} (${team.doneCount(z, sh)}/${z.nodes.length})`).join(", ")}</span></div>`).join("") || `<span class="muted">No zones claimed yet today.</span>`}
         <span class="muted">${openCount} open zones · ${doneZones} of ${team.zones().length} zones done</span></div>
       <p class="sub-h">Overall</p>
-      <p class="coll-stat"><b>${doneN.toLocaleString()}</b> completed · <b>${blockedPts.length}</b> can’t access · <b>${leftN.toLocaleString()}</b> left</p>
+      ${shiftsOn() ? ["am", "pm"].map(x => {
+        const c = inScope.filter(f => { const e = entryFor(f.properties.node, x); return e && e.status !== "blocked"; }).length;
+        const bl = inScope.filter(f => (entryFor(f.properties.node, x) || {}).status === "blocked").length;
+        return `<p class="coll-stat"><b>${SHIFT[x]}:</b> <b>${c.toLocaleString()}</b> completed · <b>${bl}</b> can’t access · <b>${(inScope.length - c - bl).toLocaleString()}</b> left</p>`;
+      }).join("") + `<p class="muted" style="margin:2px 0 0">The bar and map show the ${SHIFT[curShift()]} shift.</p>`
+      : `<p class="coll-stat"><b>${doneN.toLocaleString()}</b> completed · <b>${blockedPts.length}</b> can’t access · <b>${leftN.toLocaleString()}</b> left</p>`}
       <div class="progress"><span style="width:${inScope.length ? (doneN + blockedPts.length) / inScope.length * 100 : 0}%"></span></div>
       <label class="layer"><input type="checkbox" id="ly-zones" ${team.showZones ? "checked" : ""}><span class="name">Show work zones on the map</span></label>
       ${team.ui === "pin" ? `<form class="inline" data-form="pin"><input id="t-pin" type="password" inputmode="numeric" placeholder="Team lead PIN" aria-label="Team lead PIN" autocomplete="off">
@@ -1469,8 +1542,13 @@ const TEAM_CONFIG = {"apiKey": "AIzaSyCChaId316tMPnq3eewiVjT0R2cgwvgMvM", "authD
       ${team.admin ? `<div class="admin">
         <b>Team lead tools</b>
         <label class="field">Points the team works on<select id="t-scope-live">${scopeOptions(team.scope())}</select></label>
+        <label class="layer" style="padding-left:0"><input type="checkbox" id="t-shifts" ${shiftsOn() ? "checked" : ""}>
+          <span class="name">Track AM and PM shifts separately<small class="muted" style="display:block">Each point then needs an AM visit and a PM visit.</small></span></label>
         <div><div class="sub-h" style="margin-top:0">Crew</div>
-          <div class="chips">${team.members().map(m => `<span class="chip">${esc(m)}<button data-act="rm-member" data-name="${esc(m)}" aria-label="Remove ${esc(m)}">×</button></span>`).join("")}</div></div>
+          <div class="chips">${team.members().map(m => {
+            const msh = ((team.settings && team.settings.shiftOf) || {})[m];
+            return `<span class="chip">${esc(m)}${shiftsOn() ? `<button class="sh" data-act="cycle-shift" data-name="${esc(m)}" title="Tap to switch shift">${msh ? SHIFT[msh] : "AM/PM?"}</button>` : ""}<button data-act="rm-member" data-name="${esc(m)}" aria-label="Remove ${esc(m)}">×</button></span>`;
+          }).join("")}</div>${shiftsOn() ? `<p class="muted" style="margin:4px 0 0">Tap AM/PM next to a name to change their shift.</p>` : ""}</div>
         <form class="inline" data-form="add-name"><input id="t-name" placeholder="Add a crew member" maxlength="40" aria-label="New crew member name"><button class="btn">Add</button></form>
         <p class="muted" style="margin:0">To assign a zone, tap it on the map and pick a person.</p>
         <div><div class="sub-h" style="margin-top:0">Can’t access (${blockedPts.length})</div>
@@ -1500,10 +1578,11 @@ const TEAM_CONFIG = {"apiKey": "AIzaSyCChaId316tMPnq3eewiVjT0R2cgwvgMvM", "authD
 
   team.renderSummary = function () {
     const mine = team.myZones();
-    const next = mine.find(z => !team.complete(z));
+    const mySh = shiftsOn() ? myShift() || curShift() : null;
+    const next = mine.find(z => !team.complete(z, mySh));
     const inScope = openings.filter(f => team.inScope(f.properties));
-    const doneN = inScope.filter(f => team.done["n" + f.properties.node]).length;
-    $("summary").innerHTML = (next ? `<b>Zone ${next.num}</b> · ${esc(team.progress(next))}`
+    const doneN = inScope.filter(f => entryFor(f.properties.node)).length;
+    $("summary").innerHTML = (next ? `<b>Zone ${next.num}</b> · ${esc(team.progress(next, mySh))}`
       : mine.length ? `<b>Your zones are done</b>` : `No zone yet today`) +
       ` · team <b>${doneN}</b>/${inScope.length}`;
   };
