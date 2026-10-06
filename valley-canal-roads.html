@@ -744,11 +744,17 @@ const TEAM_CONFIG = {"apiKey": "AIzaSyCChaId316tMPnq3eewiVjT0R2cgwvgMvM", "authD
     restack();
     renderLegend(); renderSummary(); updateNearby();
   }
+  // Light rail starts hidden while the work is canal-focused. Earlier visitors' saved rail settings are
+  // reset once so everyone starts from the same view; any later choice they make is remembered.
+  const OFF_BY_DEFAULT = new Set(["rail", "streetcar", "railMedian", "railOther", "railGated"]);
+  if (saved.layers && saved.railOffV !== 1) OFF_BY_DEFAULT.forEach(id => delete saved.layers[id]);
+  saved.railOffV = 1; save();
+
   function rebuildAll() {
     drawOrder.forEach(def => {
       const s = state[def.id];
       if (s && s.layer) map.removeLayer(s.layer);
-      const on = s ? s.on : (saved.layers && def.id in saved.layers ? saved.layers[def.id] : true);
+      const on = s ? s.on : (saved.layers && def.id in saved.layers ? saved.layers[def.id] : !OFF_BY_DEFAULT.has(def.id));
       state[def.id] = { on, layer: build(def) };
     });
     if (team.drawZones) team.drawZones();
