@@ -346,11 +346,13 @@ const TEAM_CONFIG = /*__TEAM__*/null;
 
   // ---------- palette (per theme) ----------
   const PAL = {
-    light: { canal: "#1872d6", under: "#7fb2e8", road: "#c2570c", trail: "#16a34a", red: "#dc2626", grey: "#7c828b",
+    light: { canal: "#1872d6", under: "#7fb2e8", road: "#c2570c", trail: "#16a34a",
+             dirt: "#92400e", paved: "#ea580c", unknown: "#d97706", nocars: "#64748b", red: "#dc2626", grey: "#7c828b",
              rail: "#7c3aed", streetcar: "#db2777", halo: "#ffffff", ring: "#111827", me: "#1a73e8",
              collected: "#eab308", collectedStroke: "#5c3d0a",
              railx: "#c026d3", railOther: "#4f46e5" },
-    dark:  { canal: "#4ea3ff", under: "#3d6a99", road: "#fb923c", trail: "#4ade80", red: "#f87171", grey: "#9ca3af",
+    dark:  { canal: "#4ea3ff", under: "#3d6a99", road: "#fb923c", trail: "#4ade80",
+             dirt: "#d6a35c", paved: "#fb923c", unknown: "#fcd34d", nocars: "#94a3b8", red: "#f87171", grey: "#9ca3af",
              rail: "#c084fc", streetcar: "#f472b6", halo: "#111418", ring: "#ffffff", me: "#5aa9f5",
              collected: "#facc15", collectedStroke: "#111418",
              railx: "#e879f9", railOther: "#818cf8" }
@@ -415,6 +417,7 @@ const TEAM_CONFIG = /*__TEAM__*/null;
       ${collectBox(p)}
       <table>
         ${row("Connection", (CONN[p.conn] || p.conn) + (p.via_connector ? " (via short spur)" : ""))}
+        ${row("Canal road", DRIVE_LABEL[p.drive_detail])}
         ${row("Canal road type", p.canal_hw)}
         ${row("Canal road name", p.canal_road)}
         ${row("Canal", p.canal)}
@@ -431,9 +434,13 @@ const TEAM_CONFIG = /*__TEAM__*/null;
         <a href="https://www.openstreetmap.org/node/${p.node}#map=19/${p.lat}/${p.lon}" target="_blank" rel="noopener">OpenStreetMap</a>
       </div></div>`;
   }
-  function roadHTML(p, kind) {
-    return `<div class="pop"><h3>${esc(p.name || (kind === "trail" ? "Canal trail" : "Canal-bank road"))}</h3>
-      <table>${row("highway", p.highway + (p.service ? ` (${p.service})` : ""))}${row("surface", p.surface)}
+  const DRIVE_LABEL = {
+    dirt: "Drivable · dirt or gravel", paved: "Drivable · paved", unknown: "Drivable · surface not recorded",
+    restricted: "Cars not allowed", trail: "Trail or path (no cars)",
+  };
+  function roadHTML(p) {
+    return `<div class="pop"><h3>${esc(p.name || (p.drive === "trail" ? "Canal trail" : "Canal-bank road"))}</h3>
+      <table>${row("Drivable?", DRIVE_LABEL[p.drive])}${row("highway", p.highway + (p.service ? ` (${p.service})` : ""))}${row("surface", p.surface)}
       ${row("access", p.access)}${row("motor_vehicle", p.motor_vehicle)}
       ${p.connector ? row("Role", "Short spur linking a street to the canal") : ""}${row("OSM way", p.id)}</table>
       <div class="links">${osmLink("way", p.id)}</div></div>`;
@@ -536,6 +543,9 @@ const TEAM_CONFIG = /*__TEAM__*/null;
   const vmRail = split(DATA.rail, f => f.properties.line !== "Tempe Streetcar");
   const streetcar = split(DATA.rail, f => f.properties.line === "Tempe Streetcar");
   const openings = DATA.openings.features;
+  const allRoads = DATA.roads.features.concat(DATA.trails.features);
+  const driveSets = {};
+  const byDrive = k => driveSets[k] || (driveSets[k] = { type: "FeatureCollection", features: allRoads.filter(f => f.properties.drive === k) });
   const railXings = DATA.rail_crossings ? DATA.rail_crossings.features : [];
   const points = openings.concat(railXings);
   // Which layer a point is drawn in
@@ -556,11 +566,17 @@ const TEAM_CONFIG = /*__TEAM__*/null;
       style: () => ({ color: pal.canal, weight: 6, opacity: .55 }), html: canalHTML, sw: () => line(pal.canal, null, 6, .55) },
     { id: "under", label: "Canals (underground or covered)", pane: "canals", data: underCanals, n: underCanals.features.length,
       style: () => ({ color: pal.under, weight: 3, opacity: .8, dashArray: "5 6" }), html: canalHTML, sw: () => line(pal.under, "4 3") },
-    { id: "roads", label: "Canal-bank roads", pane: "roads", data: DATA.roads, n: DATA.roads.features.length,
-      style: () => ({ color: pal.road, weight: 2.5, opacity: 1 }), html: p => roadHTML(p, "road"), sw: () => line(pal.road) },
-    { id: "trails", label: "Paved canal trails", pane: "trails", data: DATA.trails, n: DATA.trails.features.length,
-      style: () => ({ color: pal.trail, weight: 2.5, opacity: 1 }), html: p => roadHTML(p, "trail"), sw: () => line(pal.trail) },
-    { id: "red", label: "Openings: no barrier recorded", pane: "openings", points: inLayer("red"),
+    { id: "rDirt", group: "Canal roads", label: "Drivable: dirt or gravel", pane: "roads", data: byDrive("dirt"), n: byDrive("dirt").features.length,
+      style: () => ({ color: pal.dirt, weight: 3, opacity: 1 }), html: roadHTML, sw: () => line(pal.dirt) },
+    { id: "rPaved", label: "Drivable: paved", pane: "roads", data: byDrive("paved"), n: byDrive("paved").features.length,
+      style: () => ({ color: pal.paved, weight: 3, opacity: 1 }), html: roadHTML, sw: () => line(pal.paved) },
+    { id: "rUnknown", label: "Drivable: surface not recorded", pane: "roads", data: byDrive("unknown"), n: byDrive("unknown").features.length,
+      style: () => ({ color: pal.unknown, weight: 3, opacity: 1, dashArray: "8 4" }), html: roadHTML, sw: () => line(pal.unknown, "6 3") },
+    { id: "rNoCars", label: "Cars not allowed (private or no access)", pane: "roads", data: byDrive("restricted"), n: byDrive("restricted").features.length,
+      style: () => ({ color: pal.nocars, weight: 2.5, opacity: 1, dashArray: "2 5" }), html: roadHTML, sw: () => line(pal.nocars, "2 3") },
+    { id: "trails", label: "Trails and paths (no cars)", pane: "trails", data: byDrive("trail"), n: byDrive("trail").features.length,
+      style: () => ({ color: pal.trail, weight: 2.5, opacity: 1 }), html: roadHTML, sw: () => line(pal.trail) },
+    { id: "red", group: "Canal openings", label: "Openings: no barrier recorded", pane: "openings", points: inLayer("red"),
       color: () => pal.red, sw: () => dot(pal.red) },
     { id: "grey", label: "Openings: barrier mapped", pane: "openings", points: inLayer("grey"),
       color: () => pal.grey, sw: () => dot(pal.grey) },
@@ -577,12 +593,13 @@ const TEAM_CONFIG = /*__TEAM__*/null;
     { id: "collected", group: "Your collection", label: "Collected", pane: "openings", points: inLayer("collected"),
       color: () => pal.collected, stroke: () => pal.collectedStroke, sw: () => dot(pal.collected, pal.collectedStroke) },
   ];
-  const passesSpur = p => p.kind === "rail" || showSpurs || !p.via_connector;
+  let onlyDrivable = saved.onlyDrivable === true;
+  const passesSpur = p => p.kind === "rail" || ((showSpurs || !p.via_connector) && (!onlyDrivable || p.drive === "drivable"));
   const shownPoints = def => def.points().filter(f => passesSpur(f.properties));
   const byId = Object.fromEntries(defs.map(d => [d.id, d]));
   // Collected markers are drawn first so the ones still to visit sit on top.
   const drawOrder = [byId.collected].concat(defs.filter(d => d.id !== "collected"));
-  const STACK = ["zones", "canals", "under", "rail", "streetcar", "roads", "trails",
+  const STACK = ["zones", "canals", "under", "rail", "streetcar", "trails", "rNoCars", "rUnknown", "rPaved", "rDirt",
                  "collected", "grey", "red", "railGated", "railOther", "railMedian"];
   function restack() {
     const layerFor = id => id === "zones" ? team.zoneLayer : state[id] && state[id].layer;
@@ -644,6 +661,15 @@ const TEAM_CONFIG = /*__TEAM__*/null;
           showSpurs = e.target.checked; saved.spurs = showSpurs; save(); rebuildPoints();
         });
         layersEl.appendChild(spur);
+        const nDrive = openings.filter(f => f.properties.drive === "drivable").length;
+        const drv = document.createElement("label");
+        drv.className = "layer sub";
+        drv.innerHTML = `<input type="checkbox" id="ly-drivable" ${onlyDrivable ? "checked" : ""}>
+          <span class="name">Only openings onto drivable canal roads (${nDrive.toLocaleString()})</span>`;
+        drv.querySelector("input").addEventListener("change", e => {
+          onlyDrivable = e.target.checked; saved.onlyDrivable = onlyDrivable; save(); rebuildPoints();
+        });
+        layersEl.appendChild(drv);
       }
     });
   }
@@ -853,7 +879,7 @@ const TEAM_CONFIG = /*__TEAM__*/null;
   });
   $("exp-csv").addEventListener("click", () => {
     const cols = ["kind", "node", "lat", "lon", "street", "street_class", "conn", "via_connector", "canal_hw", "canal_road",
-                  "canal", "barrier", "barrier_type", "barrier_m", "line", "setting", "signals", "gate", "driveway",
+                  "canal", "drive", "drive_detail", "barrier", "barrier_type", "barrier_m", "line", "setting", "signals", "gate", "driveway",
                   "access", "motor_vehicle"];
     const q = v => v == null ? "" : /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v);
     const lines = [cols.concat("collected", "collected_on", "collected_by", "street_view", "osm").join(",")];
@@ -1032,7 +1058,11 @@ const TEAM_CONFIG = /*__TEAM__*/null;
     scope() { return (this.settings && this.settings.scope) || "all"; },
     zones() { return (DATA.zones && DATA.zones[this.scope()]) || []; },
     zoneById(id) { return this.zones().find(z => z.id === id); },
-    inScope(p) { return p.kind !== "rail" && (this.scope() === "all" || !p.barrier); },
+    inScope(p) {
+      if (p.kind === "rail") return false;
+      const sc = this.scope();
+      return sc === "red" ? !p.barrier : sc === "drive" ? p.drive === "drivable" : true;
+    },
     doneCount(z) { return z.nodes.filter(n => this.done["n" + n]).length; },
     complete(z) { return this.doneCount(z) === z.nodes.length; },
     assignee(z) { const a = this.day[z.id]; return a ? a.to : null; },
@@ -1305,7 +1335,8 @@ const TEAM_CONFIG = /*__TEAM__*/null;
     $("teamSection").hidden = false;
     const scopeOptions = sel => `
       <option value="all" ${sel === "all" ? "selected" : ""}>All canal openings (${openings.length})</option>
-      <option value="red" ${sel === "red" ? "selected" : ""}>Only openings with no barrier recorded (${openings.filter(f => !f.properties.barrier).length})</option>`;
+      <option value="red" ${sel === "red" ? "selected" : ""}>Only openings with no barrier recorded (${openings.filter(f => !f.properties.barrier).length})</option>
+      <option value="drive" ${sel === "drive" ? "selected" : ""}>Only openings onto drivable canal roads (${openings.filter(f => f.properties.drive === "drivable").length})</option>`;
     if (team.ui === "create") {
       teamEl.innerHTML = `<form class="teambox" data-form="create">
         <p>Start a team. You’ll be its team lead and get a code to share.</p>

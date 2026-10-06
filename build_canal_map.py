@@ -606,6 +606,55 @@ def build_geojson(canals, rails, canal_ways, connectors, openings, rail_xings):
     }
 
 
+# ---------------------------------------------------------------- drivability
+
+PAVED = {"asphalt", "concrete", "paved", "concrete:plates", "concrete:lanes", "paving_stones", "chipseal", "sett"}
+UNPAVED = {"unpaved", "dirt", "gravel", "fine_gravel", "ground", "compacted", "earth", "sand", "grass", "pebblestone", "rock"}
+NO_CARS = {"no", "private", "agricultural", "forestry", "customers", "delivery", "permit", "military", "emergency"}
+CARS_OK = {"yes", "permissive", "designated"}
+DRIVE_RANK = ["dirt", "paved", "unknown", "restricted", "trail"]
+
+
+def drive_class(t):
+    """dirt | paved | unknown (drivable, surface not recorded) | restricted (cars not allowed) | trail."""
+    hw = t.get("highway")
+    car_road = hw in ROAD_HW or (hw in TRAIL_HW and t.get("motor_vehicle") in CARS_OK)
+    if not car_road:
+        return "trail"
+    if (t.get("motor_vehicle") or t.get("access")) in NO_CARS:
+        return "restricted"
+    s = t.get("surface")
+    if s in PAVED:
+        return "paved"
+    if s in UNPAVED or (s is None and hw == "track"):
+        return "dirt"
+    return "unknown"
+
+
+def classify_drivability(data):
+    """Tag each canal road/trail with how drivable it is, and each opening with the best road it leads to."""
+    by_way = {}
+    for coll in ("roads", "trails"):
+        for f in data[coll]["features"]:
+            p = f["properties"]
+            p["drive"] = drive_class(p)
+            by_way[p["id"]] = p["drive"]
+    for f in data["openings"]["features"]:
+        p = f["properties"]
+        classes = [by_way[w] for w in p.get("ways", []) if w in by_way] or ["trail"]
+        best = min(classes, key=DRIVE_RANK.index)
+        p["drive_detail"] = best
+        p["drive"] = "drivable" if best in ("dirt", "paved", "unknown") else best
+    c = defaultdict(int)
+    for v in by_way.values():
+        c[v] += 1
+    o = defaultdict(int)
+    for f in data["openings"]["features"]:
+        o[f["properties"]["drive"]] += 1
+    log("Canal roads by drivability: " + ", ".join(f"{k} {c[k]}" for k in DRIVE_RANK) +
+        f"; openings onto drivable roads {o['drivable']}, restricted {o['restricted']}, trails {o['trail']}")
+
+
 # ---------------------------------------------------------------- team work zones
 
 ZONE_MAX = 8          # most points one person can check in a shift
@@ -706,6 +755,7 @@ def build_zones(data):
     zones = {
         "all": make_zones(feats),
         "red": make_zones([f for f in feats if not f["properties"]["barrier"]]),
+        "drive": make_zones([f for f in feats if f["properties"].get("drive") == "drivable"]),
     }
     for k, z in zones.items():
         sizes = [len(x["nodes"]) for x in z]
@@ -869,6 +919,7 @@ def main():
                        "rail_parallel_m": RAIL_PARALLEL_M},
         }
 
+    classify_drivability(data)
     data["zones"] = build_zones(data)
     with open(args.out, "w", encoding="utf-8") as f:
         f.write(render(data))
