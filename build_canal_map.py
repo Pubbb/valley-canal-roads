@@ -656,23 +656,83 @@ def classify_drivability(data):
 
 
 # ---------------------------------------------------------------- team work zones
+#
+# Zones aim to minimise driving: points are first strung along the canal stretch they sit on
+# (canals split at junctions), each run is cut into shift-sized pieces, and then points are
+# moved or swapped between neighbouring zones whenever that shortens the total driving route.
+# Driving is estimated on a street grid (east-west plus north-south distance), which fits the
+# Valley's mile-grid streets better than straight lines.
 
-ZONE_MAX = 8          # most points one person can check in a shift
-ZONE_MIN = 4          # smaller leftovers get merged into a neighbour when possible
-ZONE_MERGE_MAX = 10   # ...as long as the merged zone stays this small
-ZONE_LINK_M = 2500    # points further apart than this never share a zone unless chained
-ZONE_MERGE_M = 4000
+ZONE_MAX = 8           # most stops one person can check in a shift
+ZONE_MIN = 4           # zones with fewer stops get merged into a neighbour when one is close enough
+ZONE_MAX_POINTS = 12   # and never more than this many openings, however close together
+ZONE_STOP_M = 150      # openings this close together (e.g. both sides of a canal at one street) are one stop
+ZONE_RUN_GAP_M = 3000  # along a canal, a gap this long starts a new run
+ZONE_SNAP_M = 200      # a point further than this from any open canal is grouped on its own
+ZONE_MERGE_M = 4000    # a too-small zone can join a zone this close (grid distance)
+ZONE_NEAR_M = 6000     # zones this close (centre to centre) trade points during polishing
+ZONE_ROUNDS = 30
 
 
-def make_zones(feats):
-    """Group openings into small, compact work zones of about ZONE_MIN..ZONE_MAX points."""
-    props = [f["properties"] for f in feats]
+def _route(pts, cache, key):
+    """Shortest open path through pts on a street grid (nearest neighbour + 2-opt from every start).
+
+    Returns (metres, order as indexes into pts)."""
+    if key in cache:
+        return cache[key]
+    n = len(pts)
+    if n < 2:
+        cache[key] = (0.0, list(range(n)))
+        return cache[key]
+    D = np.abs(pts[:, None, :] - pts[None, :, :]).sum(-1)
+    best = (math.inf, None)
+    for start in range(n):
+        order, left = [start], set(range(n)) - {start}
+        while left:
+            last = order[-1]
+            nxt = min(left, key=lambda j: (D[last, j], j))
+            order.append(nxt)
+            left.remove(nxt)
+        improved = True
+        while improved:
+            improved = False
+            for i in range(n - 2):
+                for j in range(i + 2, n):
+                    a, b, c = order[i], order[i + 1], order[j]
+                    d = order[j + 1] if j + 1 < n else None
+                    old = D[a, b] + (D[c, d] if d is not None else 0)
+                    new = D[a, c] + (D[b, d] if d is not None else 0)
+                    if new + 1e-6 < old:
+                        order[i + 1:j + 1] = order[i + 1:j + 1][::-1]
+                        improved = True
+        length = float(sum(D[order[k], order[k + 1]] for k in range(n - 1)))
+        if length < best[0] - 1e-6:
+            best = (length, order)
+    cache[key] = best
+    return best
+
+
+def _canal_stretches(data):
+    lines = []
+    for f in data["canals"]["features"]:
+        if f["properties"]["underground"]:
+            continue
+        g = f["geometry"]
+        for part in ([g["coordinates"]] if g["type"] == "LineString" else g["coordinates"]):
+            lines.append(shapely.linestrings(proj(part)))
+    return list(shapely.get_parts(shapely.line_merge(shapely.MultiLineString(lines))))
+
+
+def make_zones(feats, stretches):
+    """Group openings into small work zones of about ZONE_MIN..ZONE_MAX points with short drives."""
+    props = sorted((f["properties"] for f in feats), key=lambda p: p["node"])  # deterministic
     if not props:
         return []
     xy = proj([(p["lon"], p["lat"]) for p in props])
     n = len(xy)
+    cache = {}
 
-    # 1. Single-linkage clusters, so a zone never spans a big empty gap
+    # Stops: openings close enough to check from one place count once toward a zone's size
     parent = list(range(n))
 
     def find(i):
@@ -680,45 +740,71 @@ def make_zones(feats):
             parent[i] = parent[parent[i]]
             i = parent[i]
         return i
-    tree = STRtree(shapely.points(xy))
-    a, b = tree.query(shapely.points(xy), predicate="dwithin", distance=ZONE_LINK_M)
-    for i, j in zip(a, b):
+    a_, b_ = STRtree(shapely.points(xy)).query(shapely.points(xy), predicate="dwithin", distance=ZONE_STOP_M)
+    for i, j in zip(a_, b_):
         ri, rj = find(int(i)), find(int(j))
         if ri != rj:
             parent[max(ri, rj)] = min(ri, rj)
-    clusters = defaultdict(list)
-    for i in range(n):
-        clusters[find(i)].append(i)
+    stop = [find(i) for i in range(n)]
 
-    # 2. Recursive bisection along the longer axis until each piece fits a shift
+    def size(z):
+        return len({stop[i] for i in z})
+
+    def fits(z):
+        return size(z) <= ZONE_MAX and len(z) <= ZONE_MAX_POINTS
+
+    def cost(z):
+        z = tuple(sorted(z))
+        return _route(xy[list(z)], cache, z)[0]
+
+    # 1. Each point onto its canal stretch, ordered by distance along it
+    pts = shapely.points(xy)
+    tree = STRtree(stretches)
+    pi, si = tree.query_nearest(pts, max_distance=ZONE_SNAP_M, all_matches=False)
+    on = {int(a): int(b) for a, b in zip(pi, si)}
+    runs_by = defaultdict(list)
+    for i in range(n):
+        if i in on:
+            runs_by[on[i]].append((float(stretches[on[i]].project(pts[i])), i))
+        else:
+            runs_by[("off", i)].append((0.0, i))
+
+    # 2. Cut each stretch into runs at long gaps, then into balanced shift-sized pieces
     zones = []
 
-    def split(idx):
-        if len(idx) <= ZONE_MAX:
-            zones.append(idx)
-            return
-        pts = xy[idx]
-        ax = 0 if np.ptp(pts[:, 0]) >= np.ptp(pts[:, 1]) else 1
-        order = [idx[k] for k in np.lexsort((pts[:, 1 - ax], pts[:, ax]))]
-        half = len(order) // 2
-        split(order[:half])
-        split(order[half:])
-    for key in sorted(clusters):
-        split(clusters[key])
+    def cut(run):
+        # Split by stops, so both sides of one crossing always land in the same zone
+        stops_in_order = list(dict.fromkeys(stop[i] for i in run))
+        k = max(1, math.ceil(len(stops_in_order) / ZONE_MAX), math.ceil(len(run) / ZONE_MAX_POINTS))
+        k = min(k, len(stops_in_order))
+        rank = {st: r for r, st in enumerate(stops_in_order)}
+        pieces = defaultdict(list)
+        for i in run:
+            pieces[rank[stop[i]] * k // len(stops_in_order)].append(i)
+        zones.extend(pieces[c] for c in sorted(pieces))
+    for key in sorted(runs_by, key=str):
+        items = sorted(runs_by[key])
+        run = [items[0][1]]
+        for (a0, _), (a1, i1) in zip(items, items[1:]):
+            if a1 - a0 > ZONE_RUN_GAP_M:
+                cut(run)
+                run = []
+            run.append(i1)
+        cut(run)
 
-    # 3. Fold tiny zones into the nearest zone that has room
+    # 3. Fold too-small zones into the nearest zone with room
     changed = True
     while changed:
         changed = False
-        cents = [xy[z].mean(axis=0) for z in zones]
+        zones.sort(key=lambda z: (size(z), min(z)))
         for zi, z in enumerate(zones):
-            if len(z) >= ZONE_MIN:
+            if size(z) >= ZONE_MIN:
                 continue
             best = None
             for zj, other in enumerate(zones):
-                if zj == zi or len(z) + len(other) > ZONE_MERGE_MAX:
+                if zj == zi or not fits(z + other):
                     continue
-                d = float(np.hypot(*(cents[zi] - cents[zj])))
+                d = min(float(np.abs(xy[a] - xy[c]).sum()) for a in z for c in other)
                 if d <= ZONE_MERGE_M and (best is None or d < best[0]):
                     best = (d, zj)
             if best:
@@ -727,14 +813,44 @@ def make_zones(feats):
                 changed = True
                 break
 
-    # 4. Number north-to-south in 3 km bands, west-to-east within a band
-    def key(z):
+    # 4. Polish: move or swap points between nearby zones while it shortens the total drive
+    costs = [cost(z) for z in zones]
+    for _ in range(ZONE_ROUNDS):
+        moved = 0
+        cents = np.array([xy[z].mean(axis=0) for z in zones])
+        for zi in range(len(zones)):
+            near = [zj for zj in range(len(zones))
+                    if zj != zi and float(np.abs(cents[zi] - cents[zj]).sum()) < ZONE_NEAR_M]
+            for p in list(zones[zi]):
+                for zj in near:
+                    if p not in zones[zi]:
+                        break
+                    tried = [([q for q in zones[zi] if q != p], zones[zj] + [p])]
+                    for q in zones[zj]:
+                        tried.append(([x for x in zones[zi] if x != p] + [q],
+                                      [x for x in zones[zj] if x != q] + [p]))
+                    for a, b in tried:
+                        if not (ZONE_MIN <= size(a) <= ZONE_MAX or size(a) >= size(zones[zi]))                                 or not fits(b):
+                            continue
+                        ca, cb = cost(a), cost(b)
+                        if ca + cb + 1 < costs[zi] + costs[zj]:
+                            zones[zi], zones[zj], costs[zi], costs[zj] = a, b, ca, cb
+                            moved += 1
+                            break
+        if not moved:
+            break
+
+    # 5. Number north-to-south in 3 km bands, west-to-east within a band
+    def band(z):
         c = xy[z].mean(axis=0)
         return (-math.floor(c[1] / 3000), c[0])
-    zones.sort(key=key)
+    zones.sort(key=band)
 
     out = []
     for num, z in enumerate(zones, 1):
+        zs = sorted(z)
+        metres, order = _route(xy[zs], cache, tuple(zs))
+        route_nodes = [props[zs[k]]["node"] for k in order]
         nodes = sorted(props[i]["node"] for i in z)
         hull = shapely.MultiPoint(xy[z]).convex_hull.buffer(90, quad_segs=4).simplify(10)
         ring = np.round(unproj(np.asarray(hull.exterior.coords)), 5).tolist()
@@ -745,22 +861,25 @@ def make_zones(feats):
             if nm:
                 names[nm] += 1
         label = max(names, key=lambda k: (names[k], k)) if names else None
-        out.append({"id": f"z{nodes[0]}", "num": num, "label": label, "nodes": nodes,
-                    "center": [round(c[1], 5), round(c[0], 5)], "ring": ring})
+        out.append({"id": f"z{nodes[0]}", "num": num, "label": label, "nodes": nodes, "route": route_nodes, "stops": size(z),
+                    "km": round(metres / 1000, 1), "center": [round(c[1], 5), round(c[0], 5)], "ring": ring})
     return out
 
 
 def build_zones(data):
     feats = data["openings"]["features"]
+    stretches = _canal_stretches(data)
     zones = {
-        "all": make_zones(feats),
-        "red": make_zones([f for f in feats if not f["properties"]["barrier"]]),
-        "drive": make_zones([f for f in feats if f["properties"].get("drive") == "drivable"]),
+        "all": make_zones(feats, stretches),
+        "red": make_zones([f for f in feats if not f["properties"]["barrier"]], stretches),
+        "drive": make_zones([f for f in feats if f["properties"].get("drive") == "drivable"], stretches),
     }
     for k, z in zones.items():
-        sizes = [len(x["nodes"]) for x in z]
-        log(f"{len(z)} work zones for '{k}' scope ({min(sizes)}-{max(sizes)} points, "
-            f"{sum(1 for s in sizes if ZONE_MIN <= s <= ZONE_MAX)} with {ZONE_MIN}-{ZONE_MAX})")
+        sizes = [x["stops"] for x in z]
+        km = sorted(x["km"] for x in z)
+        log(f"{len(z)} work zones for '{k}' scope ({min(sizes)}-{max(sizes)} stops, "
+            f"{sum(1 for s in sizes if ZONE_MIN <= s <= ZONE_MAX)} with {ZONE_MIN}-{ZONE_MAX}; "
+            f"route km total {sum(km):.0f}, median {km[len(km) // 2]}, max {km[-1]})")
     return zones
 
 

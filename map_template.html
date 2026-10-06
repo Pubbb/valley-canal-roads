@@ -1210,13 +1210,15 @@ const TEAM_CONFIG = /*__TEAM__*/null;
         <option value="">Nobody</option>${team.members().map(m => `<option ${m === who ? "selected" : ""}>${esc(m)}</option>`).join("")}
         </select><button class="btn" data-act="assign" data-zone="${z.id}">Assign</button></div>`;
     }
-    const pts = z.nodes.map(n => opByNode.get(n)).filter(Boolean);
+    // Points in the zone's best driving order (worked out when the map was built)
+    const pts = (z.route || z.nodes).map(n => opByNode.get(n)).filter(Boolean);
     const todo = pts.filter(p => !team.done["n" + p.node]);
     const route = routeURL(todo.length ? todo : pts);
+    const miles = z.km != null ? Math.max(0.1, z.km / 1.609).toFixed(1) : null;
     return `<div class="pop">
       <h3>Zone ${z.num}</h3>
       <span class="pill" style="background:${color}">${esc(status)}</span>
-      <p class="zmeta">${esc(z.label || "Canal openings")} · ${esc(team.progress(z))}</p>
+      <p class="zmeta">${esc(z.label || "Canal openings")} · ${esc(team.progress(z))}${miles ? ` · about ${miles} mi between points` : ""}</p>
       ${actions ? `<div class="zactions">${actions}</div>` : ""}
       <div class="zpts">${pts.map(p => {
         const d = team.done["n" + p.node], bl = d && d.status === "blocked";
@@ -1226,15 +1228,9 @@ const TEAM_CONFIG = /*__TEAM__*/null;
       <div class="links"><a class="primary" href="${route}" target="_blank" rel="noopener">Route in Google Maps</a>
         <a href="#" data-act="fit" data-zone="${z.id}">Zoom to zone</a></div></div>`;
   }
-  // Nearest-neighbour order, then a Google Maps multi-stop link (it accepts up to 9 waypoints).
+  // A Google Maps multi-stop link through the points in the order given (it accepts up to 9 waypoints).
   function routeURL(pts) {
-    const rest = pts.slice(1, 11), order = [pts[0]];
-    while (rest.length) {
-      const last = order[order.length - 1];
-      let bi = 0, bd = Infinity;
-      rest.forEach((p, i) => { const d = (p.lat - last.lat) ** 2 + ((p.lon - last.lon) * 0.84) ** 2; if (d < bd) { bd = d; bi = i; } });
-      order.push(rest.splice(bi, 1)[0]);
-    }
+    const order = pts.slice(0, 10);
     const ll = p => `${p.lat},${p.lon}`;
     const dest = order[order.length - 1];
     const way = order.slice(0, -1).map(ll).join("|");

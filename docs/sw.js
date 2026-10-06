@@ -1,4 +1,4 @@
-const CACHE = "valley-canal-roads-20261005235911";
+const CACHE = "valley-canal-roads-20261006001217";
 const SHELL = ["./", "manifest.webmanifest", "icon-192.png", "icon-512.png", "icon-180.png",
   "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js", "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"];
 
