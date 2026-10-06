@@ -27,6 +27,7 @@
   --accent: #1667b8;
   --accent-text: #ffffff;
   --gold: #b7791f;
+  --trail-ok: #15803d;
   --warn-bg: #fff3e0;
   --warn-text: #6a3f00;
   --shadow: 0 4px 18px rgba(16, 24, 32, .18);
@@ -38,14 +39,14 @@
   :root:not([data-theme="light"]) {
     color-scheme: dark;
     --bg: #16191d; --panel: #1f2328; --text: #e6e9ec; --muted: #9aa4ae; --border: #343a41;
-    --hover: #2a2f35; --accent: #5aa9f5; --accent-text: #0b1520; --gold: #facc15; --warn-bg: #3a2a10; --warn-text: #f3d39b;
+    --hover: #2a2f35; --accent: #5aa9f5; --accent-text: #0b1520; --gold: #facc15; --trail-ok: #4ade80; --warn-bg: #3a2a10; --warn-text: #f3d39b;
     --shadow: 0 4px 18px rgba(0, 0, 0, .55);
   }
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
   --bg: #16191d; --panel: #1f2328; --text: #e6e9ec; --muted: #9aa4ae; --border: #343a41;
-  --hover: #2a2f35; --accent: #5aa9f5; --accent-text: #0b1520; --gold: #facc15; --warn-bg: #3a2a10; --warn-text: #f3d39b;
+  --hover: #2a2f35; --accent: #5aa9f5; --accent-text: #0b1520; --gold: #facc15; --trail-ok: #4ade80; --warn-bg: #3a2a10; --warn-text: #f3d39b;
   --shadow: 0 4px 18px rgba(0, 0, 0, .55);
 }
 * { box-sizing: border-box; }
@@ -154,6 +155,56 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
 .coll-stat { margin: 0; font-size: 14px; }
 .coll-stat b { font-variant-numeric: tabular-nums; }
 
+/* ---------- team ---------- */
+.teambox { display: flex; flex-direction: column; gap: 8px; }
+.teambox p { margin: 0; font-size: 14px; }
+.teambox .muted, .muted { color: var(--muted); font-size: 13px; }
+.field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+.field input, .field select, .inline input, .inline select {
+  font: inherit; font-size: 16px; color: var(--text); background: var(--panel);
+  border: 1px solid var(--border); border-radius: 9px; padding: 9px 10px; min-height: 42px; width: 100%; }
+.inline { display: flex; gap: 6px; }
+.inline > * { min-width: 0; }
+.inline .btn { flex: none; }
+.btn.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; text-align: center; }
+.btn.primary:hover { background: var(--accent); filter: brightness(1.08); }
+.linkbtn { border: 0; background: none; color: var(--accent); padding: 6px 0; cursor: pointer; font-size: 14px; text-align: left; }
+.who { display: flex; align-items: center; gap: 10px; }
+.who > div { flex: 1; min-width: 0; }
+.who small { display: block; color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.avatar { width: 34px; height: 34px; border-radius: 50%; color: #fff; display: grid; place-items: center; font-weight: 700; flex: none; }
+.sub-h { font-size: 13px; font-weight: 600; margin: 12px 0 4px; }
+.zrow { display: flex; align-items: center; gap: 10px; width: 100%; border: 1px solid var(--border); background: var(--panel);
+  border-radius: 10px; padding: 8px 10px; cursor: pointer; text-align: left; min-height: 48px; }
+.zrow + .zrow { margin-top: 6px; }
+.zrow:hover { background: var(--hover); }
+.zrow .zn { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; font-weight: 700; color: #fff; flex: none; font-variant-numeric: tabular-nums; font-size: 13px; }
+.zrow .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.zrow .nm small { display: block; color: var(--muted); font-size: 12px; }
+.zrow .ok { color: var(--trail-ok); font-weight: 700; }
+.people { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
+.people .p { display: flex; gap: 8px; align-items: baseline; }
+.people .p b { flex: none; }
+.people .p span { color: var(--muted); font-size: 13px; }
+.people .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; align-self: center; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--border); border-radius: 16px; padding: 4px 4px 4px 10px; font-size: 13px; }
+.chip button { border: 0; background: var(--hover); border-radius: 50%; width: 24px; height: 24px; cursor: pointer; line-height: 1; }
+.namegrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.admin { border-top: 1px solid var(--border); margin-top: 12px; padding-top: 10px; display: flex; flex-direction: column; gap: 10px; }
+.code { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 15px; letter-spacing: .04em; user-select: all; -webkit-user-select: all; }
+.zmeta { margin: 0 0 8px; color: var(--muted); font-size: 13.5px; }
+.zactions { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
+.zpts { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
+.zpts button { display: flex; align-items: center; gap: 8px; border: 0; background: none; padding: 7px 4px; text-align: left; cursor: pointer; border-radius: 8px; font-size: 14px; }
+.zpts button:hover { background: var(--hover); }
+.zpts .dot { width: 11px; height: 11px; border-radius: 50%; flex: none; }
+.zpts .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.zpts small { color: var(--muted); font-size: 12px; }
+.zlabel span { display: grid; place-items: center; min-width: 26px; height: 22px; padding: 0 5px; border-radius: 11px;
+  background: var(--panel); color: var(--text); border: 2px solid; font: 700 12px/1 var(--font); box-shadow: 0 1px 4px rgba(0,0,0,.25); }
+.zlabel.mine span { background: var(--accent); color: var(--accent-text); border-color: var(--accent) !important; }
+
 /* ---------- toast ---------- */
 .toast { position: fixed; z-index: 1200; left: 50%; top: calc(14px + env(safe-area-inset-top, 0px)); transform: translateX(-50%);
   background: var(--text); color: var(--panel); padding: 9px 14px; border-radius: 10px; font-size: 14px;
@@ -208,6 +259,11 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
     </div>
   </div>
   <div class="sheet-body" id="sheetBody">
+    <section id="teamSection" hidden>
+      <h2>Team</h2>
+      <div id="team"></div>
+    </section>
+
     <h2>Basemap</h2>
     <div class="seg" id="basemaps">
       <button id="bm-streets" data-b="streets">Streets</button>
@@ -225,6 +281,7 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
     <h2>Jump to</h2>
     <div class="grid2" id="cities"></div>
 
+    <section id="personalSection">
     <h2>Your collection</h2>
     <p class="coll-stat" id="collStat"></p>
     <div class="progress" aria-hidden="true"><span id="collBar"></span></div>
@@ -234,6 +291,7 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
     </div>
     <input type="file" id="coll-file" accept=".json,application/json" hidden>
     <p class="hint">Collected points are saved in this browser on this device. Back up to move them to another device or to keep them safe if browser data is cleared. On iPhone, add the map to your Home Screen so Safari keeps them.</p>
+    </section>
 
     <h2>Export points</h2>
     <div class="grid2">
@@ -257,6 +315,7 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
 
 <script>
 const DATA = /*__DATA__*/null;
+const TEAM_CONFIG = /*__TEAM__*/null;
 
 (function () {
   "use strict";
@@ -279,7 +338,10 @@ const DATA = /*__DATA__*/null;
     catch (e) { toast("Couldn’t save on this device. Private browsing may be blocking storage."); }
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
   }
-  const isCollected = p => Object.prototype.hasOwnProperty.call(collected, p.node);
+  // Shared team state. When signed in to a team, "done" comes from the team instead of this device.
+  const team = { active: false, code: null, name: null, settings: null, done: {}, day: {}, admin: false };
+  const isCollected = p => team.active ? !!team.done["n" + p.node] : Object.prototype.hasOwnProperty.call(collected, p.node);
+  const collectedAt = p => team.active ? (team.done["n" + p.node] || {}).at : collected[p.node];
   const fmtDate = iso => { const d = new Date(iso); return isNaN(d) ? "" : d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }); };
 
   // ---------- palette (per theme) ----------
@@ -328,14 +390,13 @@ const DATA = /*__DATA__*/null;
     ])
   };
 
-  // Separate panes (each with its own canvas) keep the draw order fixed when layers are toggled.
-  const panes = ["canals", "rail", "roads", "trails", "openings", "select"];
-  const renderers = {};
-  panes.forEach((p, i) => {
-    map.createPane(p).style.zIndex = 400 + i * 10;
-    renderers[p] = L.canvas({ pane: p, tolerance: p === "openings" ? (touch ? 6 : 3) : (touch ? 10 : 6) });
-  });
+  // Every interactive layer shares one canvas: a canvas on top swallows taps meant for the ones below.
+  // Draw order is kept by restack(), which re-adds layers bottom to top.
+  const mainCanvas = L.canvas({ tolerance: touch ? 8 : 5 });
+  const renderers = { canals: mainCanvas, rail: mainCanvas, roads: mainCanvas, trails: mainCanvas, openings: mainCanvas, zones: mainCanvas };
+  map.createPane("select").style.zIndex = 450;
   map.getPane("select").style.pointerEvents = "none";
+  renderers.select = L.canvas({ pane: "select" });
 
   // ---------- details ----------
   const row = (k, v) => v == null || v === "" ? "" : `<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`;
@@ -351,10 +412,7 @@ const DATA = /*__DATA__*/null;
     return `<div class="pop">
       <h3>${esc(p.street || "Unnamed street")}</h3>
       <span class="pill" style="background:${color}">${p.barrier ? "Barrier mapped" : "No barrier recorded"}</span>
-      <label class="collect${isCollected(p) ? " on" : ""}">
-        <input type="checkbox" data-node="${p.node}" ${isCollected(p) ? "checked" : ""}>
-        <span>Collected</span><small>${isCollected(p) ? esc(fmtDate(collected[p.node])) : ""}</small>
-      </label>
+      ${collectBox(p)}
       <table>
         ${row("Connection", (CONN[p.conn] || p.conn) + (p.via_connector ? " (via short spur)" : ""))}
         ${row("Canal road type", p.canal_hw)}
@@ -391,6 +449,21 @@ const DATA = /*__DATA__*/null;
       <div class="links">${osmLink("way", p.id)}</div></div>`;
   }
 
+  function collectBox(p) {
+    const on = isCollected(p);
+    if (team.active) {
+      if (!team.inScope(p)) return `<p class="caveat">Not on the team’s work list.</p>`;
+      const d = team.done["n" + p.node];
+      const locked = d && d.by !== team.name && !team.admin;
+      return `<label class="collect${on ? " on" : ""}">
+        <input type="checkbox" data-node="${p.node}" ${on ? "checked" : ""} ${locked ? "disabled" : ""}>
+        <span>Completed</span><small>${d ? esc(`${d.by} · ${fmtDate(d.at)}`) : ""}</small></label>`;
+    }
+    return `<label class="collect${on ? " on" : ""}">
+        <input type="checkbox" data-node="${p.node}" ${on ? "checked" : ""}>
+        <span>Collected</span><small>${on ? esc(fmtDate(collected[p.node])) : ""}</small></label>`;
+  }
+
   const SETTING = {
     median: ["Tracks in street median", () => pal.railx],
     shared: ["Streetcar shares the lane", () => pal.railOther],
@@ -409,10 +482,7 @@ const DATA = /*__DATA__*/null;
     return `<div class="pop">
       <h3>${esc(p.street || (p.driveway ? "Unnamed driveway" : "Unnamed street"))}</h3>
       <span class="pill" style="background:${color()}">${label}</span>
-      <label class="collect${isCollected(p) ? " on" : ""}">
-        <input type="checkbox" data-node="${p.node}" ${isCollected(p) ? "checked" : ""}>
-        <span>Collected</span><small>${isCollected(p) ? esc(fmtDate(collected[p.node])) : ""}</small>
-      </label>
+      ${collectBox(p)}
       <table>
         ${row("Line", p.line)}
         ${row("Crossing road", p.street_class + (p.driveway ? " (driveway or parking)" : ""))}
@@ -512,6 +582,14 @@ const DATA = /*__DATA__*/null;
   const byId = Object.fromEntries(defs.map(d => [d.id, d]));
   // Collected markers are drawn first so the ones still to visit sit on top.
   const drawOrder = [byId.collected].concat(defs.filter(d => d.id !== "collected"));
+  const STACK = ["zones", "canals", "under", "rail", "streetcar", "roads", "trails",
+                 "collected", "grey", "red", "railGated", "railOther", "railMedian"];
+  function restack() {
+    const layerFor = id => id === "zones" ? team.zoneLayer : state[id] && state[id].layer;
+    const isOn = id => id === "zones" ? team.active && team.showZones : state[id] && state[id].on;
+    STACK.forEach(id => { const l = layerFor(id); if (l && map.hasLayer(l)) map.removeLayer(l); });
+    STACK.forEach(id => { const l = layerFor(id); if (l && isOn(id)) l.addTo(map); });
+  }
 
   function build(def) {
     if (def.points) {
@@ -551,7 +629,7 @@ const DATA = /*__DATA__*/null;
       lab.querySelector("input").addEventListener("change", e => {
         const s = state[def.id];
         s.on = e.target.checked;
-        s.on ? s.layer.addTo(map) : map.removeLayer(s.layer);
+        restack();
         saved.layers = Object.fromEntries(defs.map(d => [d.id, state[d.id].on])); save();
         updateNearby(); renderSummary();
       });
@@ -574,8 +652,8 @@ const DATA = /*__DATA__*/null;
       const s = state[def.id];
       map.removeLayer(s.layer);
       s.layer = build(def);
-      if (s.on) s.layer.addTo(map);
     });
+    restack();
     renderLegend(); renderSummary(); updateNearby();
   }
   function rebuildAll() {
@@ -584,8 +662,9 @@ const DATA = /*__DATA__*/null;
       if (s && s.layer) map.removeLayer(s.layer);
       const on = s ? s.on : (saved.layers && def.id in saved.layers ? saved.layers[def.id] : true);
       state[def.id] = { on, layer: build(def) };
-      if (on) state[def.id].layer.addTo(map);
     });
+    if (team.drawZones) team.drawZones();
+    restack();
     renderLegend(); renderSummary(); updateNearby();
   }
 
@@ -593,6 +672,7 @@ const DATA = /*__DATA__*/null;
     return points.filter(f => passesSpur(f.properties) && state[pointLayer(f.properties)].on);
   }
   function renderSummary() {
+    if (team.active) return team.renderSummary();
     const total = points.filter(f => passesSpur(f.properties)).length;
     const got = shownPoints(byId.collected).length, red = shownPoints(byId.red).length;
     $("summary").innerHTML = `<b>${got.toLocaleString()}</b> of ${total.toLocaleString()} collected · <b class="r">${red.toLocaleString()}</b> no barrier recorded`;
@@ -767,7 +847,8 @@ const DATA = /*__DATA__*/null;
   $("exp-geojson").addEventListener("click", () => {
     download(`canal-rail-points-${DATA.meta.extract}.geojson`,
       JSON.stringify({ type: "FeatureCollection", features: visiblePoints().map(f => ({ ...f,
-        properties: { ...f.properties, collected: isCollected(f.properties), collected_on: collected[f.properties.node] || null } })) }, null, 1),
+        properties: { ...f.properties, collected: isCollected(f.properties), collected_on: collectedAt(f.properties) || null,
+        collected_by: team.active ? (team.done["n" + f.properties.node] || {}).by || null : null } })) }, null, 1),
       "application/geo+json");
   });
   $("exp-csv").addEventListener("click", () => {
@@ -775,11 +856,12 @@ const DATA = /*__DATA__*/null;
                   "canal", "barrier", "barrier_type", "barrier_m", "line", "setting", "signals", "gate", "driveway",
                   "access", "motor_vehicle"];
     const q = v => v == null ? "" : /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v);
-    const lines = [cols.concat("collected", "collected_on", "street_view", "osm").join(",")];
+    const lines = [cols.concat("collected", "collected_on", "collected_by", "street_view", "osm").join(",")];
     visiblePoints().forEach(f => {
       const p = f.properties;
       lines.push(cols.map(c => q(p[c])).concat(
-        isCollected(p), collected[p.node] ? collected[p.node].slice(0, 10) : "",
+        isCollected(p), collectedAt(p) ? collectedAt(p).slice(0, 10) : "",
+        q(team.active ? (team.done["n" + p.node] || {}).by : ""),
         `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${p.lat},${p.lon}`,
         `https://www.openstreetmap.org/node/${p.node}`).join(","));
     });
@@ -792,6 +874,13 @@ const DATA = /*__DATA__*/null;
     const el = e.target;
     if (!el.matches || !el.matches(".collect input")) return;
     const node = el.dataset.node;
+    if (team.active) {
+      const lab = el.closest(".collect");
+      lab.classList.toggle("on", el.checked);
+      lab.querySelector("small").textContent = el.checked ? `${team.name} · ${fmtDate(new Date().toISOString())}` : "";
+      team.toggleDone(node, el.checked);
+      return;
+    }
     if (el.checked) collected[node] = new Date().toISOString(); else delete collected[node];
     saveCollected();
     const lab = el.closest(".collect");
@@ -830,6 +919,507 @@ const DATA = /*__DATA__*/null;
     });
   });
 
+
+  // ---------- team work ----------
+  // Shared state lives in Firestore (or a same-browser stand-in when TEAM_CONFIG.demo is set):
+  //   teams/{code}/state/settings  { scope, members[], adminPinHash, created }
+  //   teams/{code}/state/done      { n<node>: { by, at } }
+  //   teams/{code}/days/{date}     { z<id>: { to, at, by } }   one doc per Phoenix calendar day
+  const FB = "__FIREBASE__";
+  const TKEY = "valley-canal-roads:team";
+  const phoenixDay = (offsetDays = 0) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Phoenix" })
+    .format(new Date(Date.now() + offsetDays * 864e5));
+  const prettyDay = d => new Date(d + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  const PERSON_COLORS = ["#2563eb", "#db2777", "#059669", "#d97706", "#7c3aed", "#0891b2", "#b91c1c", "#4d7c0f", "#a21caf", "#0f766e"];
+  const personColor = name => { let h = 7; for (const c of String(name || "")) h = (h * 31 + c.charCodeAt(0)) >>> 0; return PERSON_COLORS[h % PERSON_COLORS.length]; };
+  const opByNode = new Map(openings.map(f => [f.properties.node, f.properties]));
+  const accent = () => getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#1667b8";
+  const tstore = (() => { try { return JSON.parse(localStorage.getItem(TKEY)) || {}; } catch (e) { return {}; } })();
+  const saveTeam = () => { try { localStorage.setItem(TKEY, JSON.stringify({ code: team.code, name: team.name })); } catch (e) {} };
+
+  function makeFirebaseSync(cfg, code) {
+    const ready = Promise.all([import(FB + "firebase-app.js"), import(FB + "firebase-firestore.js")]).then(([appMod, fs]) => {
+      const app = appMod.getApps().length ? appMod.getApp() : appMod.initializeApp(cfg);
+      let db;
+      try {
+        db = fs.initializeFirestore(app, { localCache: fs.persistentLocalCache({ tabManager: fs.persistentMultipleTabManager() }) });
+      } catch (e) { db = fs.getFirestore(app); }
+      return { fs, db };
+    });
+    const ref = ({ fs, db }, path) => fs.doc(db, "teams", code, ...path);
+    return {
+      watch(path, cb, onErr) {
+        let unsub = null, stopped = false;
+        ready.then(c => {
+          if (stopped) return;
+          unsub = c.fs.onSnapshot(ref(c, path), { includeMetadataChanges: false },
+            snap => cb(snap.exists() ? snap.data() : null, snap.metadata.fromCache), onErr);
+        }).catch(onErr);
+        return () => { stopped = true; if (unsub) unsub(); };
+      },
+      async get(path) { const c = await ready; const snap = await c.fs.getDoc(ref(c, path)); return snap.exists() ? snap.data() : null; },
+      async merge(path, data) { const c = await ready; return c.fs.setDoc(ref(c, path), data, { merge: true }); },
+      async setField(path, field, value) {
+        const c = await ready;
+        return c.fs.setDoc(ref(c, path), { [field]: value === undefined ? c.fs.deleteField() : value }, { merge: true });
+      },
+      async listAdd(path, field, value) { const c = await ready; return c.fs.setDoc(ref(c, path), { [field]: c.fs.arrayUnion(value) }, { merge: true }); },
+      async listRemove(path, field, value) { const c = await ready; return c.fs.setDoc(ref(c, path), { [field]: c.fs.arrayRemove(value) }, { merge: true }); },
+      async claim(path, field, value, override) {
+        const c = await ready, r = ref(c, path);
+        return c.fs.runTransaction(c.db, async tx => {
+          const snap = await tx.get(r);
+          const cur = snap.exists() ? snap.data()[field] : null;
+          if (cur && cur.to !== value.to && !override) throw new Error("taken:" + cur.to);
+          tx.set(r, { [field]: value }, { merge: true });
+        });
+      },
+    };
+  }
+
+  // Same API backed by localStorage + BroadcastChannel, for trying the team features without Firebase.
+  function makeDemoSync(code) {
+    const key = path => `vcr-demo:${code}:${path.join("/")}`;
+    const read = path => { try { return JSON.parse(localStorage.getItem(key(path))); } catch (e) { return null; } };
+    const subs = new Set();
+    const ch = "BroadcastChannel" in window ? new BroadcastChannel("vcr-demo") : null;
+    const notify = k => subs.forEach(sb => { if (sb.k === k) sb.cb(read(sb.path), false); });
+    if (ch) ch.onmessage = e => notify(e.data);
+    const write = (path, fn) => {
+      const cur = read(path) || {};
+      fn(cur);
+      localStorage.setItem(key(path), JSON.stringify(cur));
+      notify(key(path));
+      if (ch) ch.postMessage(key(path));
+      return Promise.resolve();
+    };
+    return {
+      watch(path, cb) { const sb = { k: key(path), path, cb }; subs.add(sb); setTimeout(() => cb(read(path), false)); return () => subs.delete(sb); },
+      get: path => Promise.resolve(read(path)),
+      merge: (path, data) => write(path, cur => Object.assign(cur, data)),
+      setField: (path, f, v) => write(path, cur => { if (v === undefined) delete cur[f]; else cur[f] = v; }),
+      listAdd: (path, f, v) => write(path, cur => { cur[f] = Array.from(new Set([...(cur[f] || []), v])); }),
+      listRemove: (path, f, v) => write(path, cur => { cur[f] = (cur[f] || []).filter(x => x !== v); }),
+      claim(path, f, v, override) {
+        const cur = (read(path) || {})[f];
+        if (cur && cur.to !== v.to && !override) return Promise.reject(new Error("taken:" + cur.to));
+        return write(path, c => { c[f] = v; });
+      },
+    };
+  }
+
+  async function sha256(text) {
+    const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+    return Array.from(new Uint8Array(buf), b => b.toString(16).padStart(2, "0")).join("");
+  }
+  function newCode() {
+    const abc = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+    const r = crypto.getRandomValues(new Uint8Array(12));
+    const s = Array.from(r, x => abc[x % abc.length]).join("");
+    return `CANAL-${s.slice(0, 4)}-${s.slice(4, 8)}-${s.slice(8)}`;
+  }
+  const normCode = c => String(c || "").trim().toUpperCase().replace(/\s+/g, "");
+  const syncError = err => {
+    const code = err && err.code;
+    if (code === "unavailable" || code === "failed-precondition") return "You’re offline. Claiming and assigning zones need a connection.";
+    if (code === "permission-denied") return "The team database refused this. Check the team code.";
+    return "Couldn’t reach the team. " + (err && err.message ? err.message : "");
+  };
+
+  Object.assign(team, {
+    sync: null, unsubs: [], dayUnsub: null, today: phoenixDay(), status: "none",
+    zoneLayer: null, labelLayer: null, showZones: saved.zones !== false, view: null,
+    scope() { return (this.settings && this.settings.scope) || "all"; },
+    zones() { return (DATA.zones && DATA.zones[this.scope()]) || []; },
+    zoneById(id) { return this.zones().find(z => z.id === id); },
+    inScope(p) { return p.kind !== "rail" && (this.scope() === "all" || !p.barrier); },
+    doneCount(z) { return z.nodes.filter(n => this.done["n" + n]).length; },
+    complete(z) { return this.doneCount(z) === z.nodes.length; },
+    assignee(z) { const a = this.day[z.id]; return a ? a.to : null; },
+    members() { return ((this.settings && this.settings.members) || []).slice().sort((a, b) => a.localeCompare(b)); },
+    myZones() { return this.zones().filter(z => this.assignee(z) === this.name); },
+  });
+
+  function makeSync(code) {
+    return TEAM_CONFIG && TEAM_CONFIG.demo ? makeDemoSync(code) : makeFirebaseSync(TEAM_CONFIG, code);
+  }
+  function stopTeam() {
+    team.unsubs.forEach(u => u()); team.unsubs = [];
+    if (team.dayUnsub) team.dayUnsub(); team.dayUnsub = null;
+    Object.assign(team, { sync: null, settings: null, done: {}, day: {}, status: "none", admin: false });
+  }
+  const onErr = err => { toast(syncError(err)); };
+  function watchDay() {
+    if (team.dayUnsub) team.dayUnsub();
+    team.day = {};
+    team.dayUnsub = team.sync.watch(["days", team.today], d => { team.day = d || {}; refresh(false); }, onErr);
+  }
+  function startTeam(code) {
+    stopTeam();
+    team.code = code;
+    team.sync = makeSync(code);
+    team.status = "connecting";
+    team.unsubs.push(team.sync.watch(["state", "settings"], (d, fromCache) => {
+      team.settings = d;
+      if (d) team.status = "ok";
+      else if (!fromCache) team.status = "missing";
+      if (d && team.name && !(d.members || []).includes(team.name)) team.name = null;  // removed from the team
+      refresh(true);
+    }, onErr));
+    team.unsubs.push(team.sync.watch(["state", "done"], d => { team.done = d || {}; refresh(true); }, onErr));
+    watchDay();
+    refresh(true);
+  }
+  setInterval(() => {
+    const d = phoenixDay();
+    if (team.sync && d !== team.today) { team.today = d; watchDay(); }
+  }, 60000);
+
+  let wasActive = false;
+  function refresh(pointsChanged) {
+    team.active = !!(team.status === "ok" && team.settings && team.name);
+    byId.collected.label = team.active ? "Completed" : "Collected";
+    byId.collected.group = team.active ? "Team progress" : "Your collection";
+    $("personalSection").hidden = team.active;
+    if (pointsChanged || team.active !== wasActive) rebuildPoints();
+    wasActive = team.active;
+    team.drawZones();
+    restack();
+    renderTeam();
+    renderSummary();
+  }
+
+  // ----- zones on the map -----
+  team.drawZones = function () {
+    if (team.zoneLayer) map.removeLayer(team.zoneLayer);
+    if (team.labelLayer) map.removeLayer(team.labelLayer);
+    team.zoneLayer = team.labelLayer = null;
+    if (!team.active) return;
+    const polys = [], labels = [];
+    team.zones().forEach(z => {
+      const who = team.assignee(z), done = team.complete(z), mine = who && who === team.name;
+      const color = done ? pal.trail : mine ? accent() : who ? personColor(who) : pal.grey;
+      const style = done ? { color, weight: 1.5, dashArray: "4 5", fillOpacity: 0.05 }
+        : mine ? { color, weight: 3, fillOpacity: 0.14 }
+        : who ? { color, weight: 2, fillOpacity: 0.12 }
+        : { color, weight: 1, fillOpacity: 0.04 };
+      const poly = L.polygon(z.ring.map(([lon, lat]) => [lat, lon]), Object.assign({ renderer: renderers.zones, fillColor: color }, style));
+      poly.on("click", e => showZone(z, e.latlng));
+      polys.push(poly);
+      const lab = L.marker(z.center, {
+        icon: L.divIcon({ className: "zlabel" + (mine ? " mine" : ""), iconSize: null,
+          html: `<span style="border-color:${color}">${done ? "✓" : z.num}</span>` }),
+        keyboard: false, title: `Zone ${z.num}`
+      }).on("click", () => showZone(z, L.latLng(z.center)));
+      labels.push(lab);
+    });
+    team.zoneLayer = L.featureGroup(polys);
+    team.labelLayer = L.layerGroup(labels);
+    syncLabels();
+  };
+  function syncLabels() {
+    if (!team.labelLayer) return;
+    const show = team.active && team.showZones && map.getZoom() >= 12;
+    if (show && !map.hasLayer(team.labelLayer)) team.labelLayer.addTo(map);
+    if (!show && map.hasLayer(team.labelLayer)) map.removeLayer(team.labelLayer);
+  }
+  map.on("zoomend", syncLabels);
+
+  function zoneStatus(z) {
+    const who = team.assignee(z);
+    if (team.complete(z)) return ["All done", pal.trail];
+    if (who === team.name) return ["Your zone today", accent()];
+    if (who) return [`${who} today`, personColor(who)];
+    return ["Open", pal.grey];
+  }
+  function zoneHTML(z) {
+    const [status, color] = zoneStatus(z);
+    const who = team.assignee(z), done = team.doneCount(z), complete = team.complete(z);
+    let actions = "";
+    if (!complete && !who) actions += `<button class="btn primary" data-act="claim" data-zone="${z.id}">Claim this zone for today</button>`;
+    if (who && who === team.name) actions += `<button class="btn center" data-act="release" data-zone="${z.id}">Release this zone</button>`;
+    if (team.admin) {
+      actions += `<div class="inline"><select id="assign-${z.id}" aria-label="Assign zone ${z.num} to">
+        <option value="">Nobody</option>${team.members().map(m => `<option ${m === who ? "selected" : ""}>${esc(m)}</option>`).join("")}
+        </select><button class="btn" data-act="assign" data-zone="${z.id}">Assign</button></div>`;
+    }
+    const pts = z.nodes.map(n => opByNode.get(n)).filter(Boolean);
+    const todo = pts.filter(p => !team.done["n" + p.node]);
+    const route = routeURL(todo.length ? todo : pts);
+    return `<div class="pop">
+      <h3>Zone ${z.num}</h3>
+      <span class="pill" style="background:${color}">${esc(status)}</span>
+      <p class="zmeta">${esc(z.label || "Canal openings")} · ${pts.length} points · ${done} done</p>
+      ${actions ? `<div class="zactions">${actions}</div>` : ""}
+      <div class="zpts">${pts.map(p => {
+        const d = team.done["n" + p.node];
+        return `<button data-act="point" data-node="${p.node}"><span class="dot" style="background:${d ? pal.collected : p.barrier ? pal.grey : pal.red}"></span>
+          <span class="nm">${esc(p.street || "Unnamed street")}</span><small>${d ? "✓ " + esc(d.by) : ""}</small></button>`;
+      }).join("")}</div>
+      <div class="links"><a class="primary" href="${route}" target="_blank" rel="noopener">Route in Google Maps</a>
+        <a href="#" data-act="fit" data-zone="${z.id}">Zoom to zone</a></div></div>`;
+  }
+  // Nearest-neighbour order, then a Google Maps multi-stop link (it accepts up to 9 waypoints).
+  function routeURL(pts) {
+    const rest = pts.slice(1, 11), order = [pts[0]];
+    while (rest.length) {
+      const last = order[order.length - 1];
+      let bi = 0, bd = Infinity;
+      rest.forEach((p, i) => { const d = (p.lat - last.lat) ** 2 + ((p.lon - last.lon) * 0.84) ** 2; if (d < bd) { bd = d; bi = i; } });
+      order.push(rest.splice(bi, 1)[0]);
+    }
+    const ll = p => `${p.lat},${p.lon}`;
+    const dest = order[order.length - 1];
+    const way = order.slice(0, -1).map(ll).join("|");
+    return `https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=${ll(dest)}${way ? "&waypoints=" + encodeURIComponent(way) : ""}`;
+  }
+  function showZone(z, latlng) { team.view = z.id; showDetail(zoneHTML(z), latlng || L.latLng(z.center), false); }
+  function fitZone(z) {
+    const b = L.latLngBounds(z.ring.map(([lon, lat]) => [lat, lon]));
+    map.fitBounds(b, { paddingTopLeft: [phoneMQ.matches ? 30 : 370, 40], paddingBottomRight: [30, phoneMQ.matches ? 320 : 40], maxZoom: 16 });
+  }
+
+  // ----- actions -----
+  team.toggleDone = function (node, on) {
+    const field = "n" + node;
+    const value = on ? { by: team.name, at: new Date().toISOString() } : undefined;
+    if (on) team.done[field] = value; else delete team.done[field];  // show it right away; the listener confirms
+    refresh(true);
+    team.sync.setField(["state", "done"], field, value).catch(onErr);
+    if (on) {
+      const z = team.zones().find(zz => zz.nodes.includes(Number(node)));
+      if (z && team.complete(z)) toast(`Zone ${z.num} is complete. Nice work.`);
+    }
+  };
+  async function claimZone(z, who, override) {
+    try {
+      await team.sync.claim(["days", team.today], z.id, { to: who, at: new Date().toISOString(), by: team.name }, override);
+      toast(who === team.name ? `Zone ${z.num} is yours for today.` : `Zone ${z.num} assigned to ${who}.`);
+      return true;
+    } catch (err) {
+      if (String(err.message).startsWith("taken:")) toast(`Zone ${z.num} was just taken by ${err.message.slice(6)}.`);
+      else toast(syncError(err));
+      return false;
+    }
+  }
+  function claimNearest() {
+    const c = map.getCenter();
+    const open = team.zones().filter(z => !team.assignee(z) && !team.complete(z))
+      .sort((a, b) => c.distanceTo(a.center) - c.distanceTo(b.center));
+    if (!open.length) return toast("Every zone is taken or done today.");
+    const z = open[0];
+    claimZone(z, team.name, false).then(ok => { if (ok) { collapseOnPhone(); fitZone(z); showZone(z); } });
+  }
+  async function carryOver() {
+    try {
+      const y = await team.sync.get(["days", phoenixDay(-1)]) || {};
+      let n = 0;
+      for (const [zid, a] of Object.entries(y)) {
+        const z = team.zoneById(zid);
+        if (!z || team.complete(z) || team.day[zid] || !team.members().includes(a.to)) continue;
+        await team.sync.setField(["days", team.today], zid, { to: a.to, at: new Date().toISOString(), by: team.name });
+        n++;
+      }
+      toast(n ? `Carried over ${n} unfinished zone${n === 1 ? "" : "s"} from yesterday.` : "Nothing unfinished to carry over from yesterday.");
+    } catch (err) { toast(syncError(err)); }
+  }
+
+  document.addEventListener("click", e => {
+    const el = e.target.closest("[data-act]");
+    if (!el) return;
+    const act = el.dataset.act, z = el.dataset.zone && team.zoneById(el.dataset.zone);
+    if (act === "fit" || act === "zone") e.preventDefault();
+    if (act === "claim" && z) claimZone(z, team.name, false).then(ok => ok && showZone(z));
+    else if (act === "release" && z) team.sync.setField(["days", team.today], z.id, undefined).then(() => { toast(`Released zone ${z.num}.`); clearSelection(); }).catch(onErr);
+    else if (act === "assign" && z) {
+      const who = $("assign-" + z.id).value;
+      (who ? claimZone(z, who, true) : team.sync.setField(["days", team.today], z.id, undefined).then(() => toast(`Zone ${z.num} unassigned.`)))
+        .then(() => clearSelection()).catch(onErr);
+    }
+    else if (act === "point") {
+      const p = opByNode.get(Number(el.dataset.node));
+      if (p) { const ll = L.latLng(p.lat, p.lon); map.setView(ll, Math.max(map.getZoom(), 16)); showDetail(pointHTML(p), ll, true); }
+    }
+    else if (act === "fit" && z) fitZone(z);
+    else if (act === "zone" && z) { collapseOnPhone(); fitZone(z); setTimeout(() => showZone(z), 350); }
+    else if (act === "claim-near") claimNearest();
+    else if (act === "new-team") { team.ui = "create"; renderTeam(); }
+    else if (act === "cancel") { team.ui = null; renderTeam(); }
+    else if (act === "switch") { team.name = null; saveTeam(); team.admin = false; refresh(true); }
+    else if (act === "leave") { stopTeam(); team.code = team.name = null; saveTeam(); refresh(true); }
+    else if (act === "admin") { team.ui = "pin"; renderTeam(); }
+    else if (act === "lock") { team.admin = false; refresh(true); }
+    else if (act === "carry") carryOver();
+    else if (act === "copy-invite") {
+      const link = inviteLink();
+      (navigator.clipboard ? navigator.clipboard.writeText(link) : Promise.reject()).then(
+        () => toast("Invite link copied."), () => toast("Couldn’t copy. Select the code and copy it instead."));
+    }
+    else if (act === "rm-member") team.sync.listRemove(["state", "settings"], "members", el.dataset.name).catch(onErr);
+    else if (act === "pick-name") { team.name = el.dataset.name; saveTeam(); refresh(true); }
+  });
+  const inviteLink = () => `${location.origin}${location.pathname}?team=${encodeURIComponent(team.code)}`;
+
+  document.addEventListener("submit", async e => {
+    const f = e.target;
+    if (!f.dataset || !f.dataset.form) return;
+    e.preventDefault();
+    const val = id => (f.querySelector("#" + id) || {}).value || "";
+    if (f.dataset.form === "join") {
+      const code = normCode(val("t-code"));
+      if (code.length < 16) return toast("Team codes look like CANAL-XXXX-XXXX-XXXX.");
+      team.ui = null; startTeam(code); saveTeam();
+    } else if (f.dataset.form === "add-name") {
+      const name = val("t-name").trim().slice(0, 40);
+      if (!name) return;
+      try { await team.sync.listAdd(["state", "settings"], "members", name); } catch (err) { return toast(syncError(err)); }
+      if (f.dataset.self) { team.name = name; saveTeam(); }
+      refresh(false);
+    } else if (f.dataset.form === "pin") {
+      const ok = team.settings && team.settings.adminPinHash === await sha256(team.code + ":" + val("t-pin"));
+      if (!ok) return toast("That PIN doesn’t match.");
+      team.admin = true; team.ui = null; refresh(true);
+    } else if (f.dataset.form === "create") {
+      const name = val("t-name").trim().slice(0, 40), pin = val("t-pin").trim();
+      if (!name) return toast("Enter your name.");
+      if (!/^\d{4,8}$/.test(pin)) return toast("Use a 4 to 8 digit PIN for team lead tools.");
+      const code = newCode();
+      const sync = makeSync(code);
+      try {
+        await sync.merge(["state", "settings"], { scope: val("t-scope") || "all", members: [name],
+          adminPinHash: await sha256(code + ":" + pin), created: new Date().toISOString(), createdBy: name });
+      } catch (err) { return toast(syncError(err)); }
+      team.ui = null; team.name = name; startTeam(code); team.admin = true; saveTeam();
+      toast("Team created. Share the invite link with your crew.");
+    }
+  });
+  document.addEventListener("change", e => {
+    if (e.target.id === "t-scope-live") team.sync.merge(["state", "settings"], { scope: e.target.value }).catch(onErr);
+    if (e.target.id === "ly-zones") { team.showZones = e.target.checked; saved.zones = team.showZones; save(); restack(); syncLabels(); }
+  });
+
+  // ----- panel -----
+  const teamEl = $("team");
+  function renderTeam() {
+    if (!TEAM_CONFIG) return;
+    $("teamSection").hidden = false;
+    const scopeOptions = sel => `
+      <option value="all" ${sel === "all" ? "selected" : ""}>All canal openings (${openings.length})</option>
+      <option value="red" ${sel === "red" ? "selected" : ""}>Only openings with no barrier recorded (${openings.filter(f => !f.properties.barrier).length})</option>`;
+    if (team.ui === "create") {
+      teamEl.innerHTML = `<form class="teambox" data-form="create">
+        <p>Start a team. You’ll be its team lead and get a code to share.</p>
+        <label class="field">Your name<input id="t-name" autocomplete="name" maxlength="40" required></label>
+        <label class="field">Team lead PIN (4–8 digits)<input id="t-pin" inputmode="numeric" pattern="\\d{4,8}" required></label>
+        <label class="field">Points the team works on<select id="t-scope">${scopeOptions("all")}</select></label>
+        <button class="btn primary">Create team</button>
+        <button type="button" class="linkbtn" data-act="cancel">Cancel</button></form>`;
+      return;
+    }
+    if (!team.code) {
+      teamEl.innerHTML = `<form class="teambox" data-form="join">
+        <p>Working with a crew? Enter your team code to share zones and progress.</p>
+        <div class="inline"><input id="t-code" placeholder="CANAL-XXXX-XXXX-XXXX" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Team code">
+        <button class="btn primary">Join</button></div>
+        <button type="button" class="linkbtn" data-act="new-team">Start a new team</button></form>`;
+      return;
+    }
+    if (team.status === "connecting") { teamEl.innerHTML = `<p class="muted">Connecting to team ${esc(team.code)}…</p>`; return; }
+    if (team.status === "missing") {
+      teamEl.innerHTML = `<div class="teambox"><p>No team found with code <span class="code">${esc(team.code)}</span>. Check the code with your team lead.</p>
+        <button class="btn center" data-act="leave">Try another code</button></div>`;
+      return;
+    }
+    if (!team.name) {
+      const names = team.members();
+      teamEl.innerHTML = `<div class="teambox"><p>Who are you?</p>
+        ${names.length ? `<div class="namegrid">${names.map(n => `<button class="btn" data-act="pick-name" data-name="${esc(n)}">${esc(n)}</button>`).join("")}</div>` : ""}
+        <form class="inline" data-form="add-name" data-self="1"><input id="t-name" placeholder="I’m not listed: my name" maxlength="40" aria-label="Your name">
+        <button class="btn">Add</button></form>
+        <button class="linkbtn" data-act="leave">Use a different team code</button></div>`;
+      return;
+    }
+    const mine = team.myZones();
+    const zoneRow = z => {
+      const d = team.doneCount(z), n = z.nodes.length, ok = d === n;
+      return `<button class="zrow" data-act="zone" data-zone="${z.id}"><span class="zn" style="background:${ok ? pal.trail : accent()}">${z.num}</span>
+        <span class="nm">${esc(z.label || "Canal openings")}<small>${d} of ${n} done</small></span>${ok ? `<span class="ok">✓</span>` : ""}</button>`;
+    };
+    const byPerson = {};
+    team.zones().forEach(z => { const w = team.assignee(z); if (w) (byPerson[w] = byPerson[w] || []).push(z); });
+    const openCount = team.zones().filter(z => !team.assignee(z) && !team.complete(z)).length;
+    const inScope = openings.filter(f => team.inScope(f.properties));
+    const doneN = inScope.filter(f => team.done["n" + f.properties.node]).length;
+    const doneZones = team.zones().filter(z => team.complete(z)).length;
+    teamEl.innerHTML = `
+      <div class="who"><span class="avatar" style="background:${personColor(team.name)}">${esc(team.name.slice(0, 1).toUpperCase())}</span>
+        <div><b>${esc(team.name)}</b><small>Team ${esc(team.code)}${team.admin ? " · team lead" : ""}</small></div>
+        <button class="linkbtn" data-act="switch">Switch</button></div>
+      <p class="sub-h">Your zones · ${esc(prettyDay(team.today))}</p>
+      ${mine.length ? mine.map(zoneRow).join("") : `<p class="muted">You don’t have a zone today.</p>`}
+      ${openCount ? `<button class="btn primary" style="width:100%;margin-top:8px" data-act="claim-near">Claim the nearest open zone</button>` : ""}
+      <p class="hint">Claims the closest open zone to the centre of the map. Tap a zone on the map to see its points or claim it.</p>
+      <p class="sub-h">Team today</p>
+      <div class="people">${Object.keys(byPerson).sort().map(w => `<div class="p"><span class="dot" style="background:${personColor(w)}"></span><b>${esc(w)}</b>
+        <span>${byPerson[w].map(z => `Zone ${z.num} (${team.doneCount(z)}/${z.nodes.length})`).join(", ")}</span></div>`).join("") || `<span class="muted">No zones claimed yet today.</span>`}
+        <span class="muted">${openCount} open zones · ${doneZones} of ${team.zones().length} zones done</span></div>
+      <p class="sub-h">Overall</p>
+      <p class="coll-stat"><b>${doneN.toLocaleString()}</b> of ${inScope.length.toLocaleString()} points completed</p>
+      <div class="progress"><span style="width:${inScope.length ? doneN / inScope.length * 100 : 0}%"></span></div>
+      <label class="layer"><input type="checkbox" id="ly-zones" ${team.showZones ? "checked" : ""}><span class="name">Show work zones on the map</span></label>
+      ${team.ui === "pin" ? `<form class="inline" data-form="pin"><input id="t-pin" type="password" inputmode="numeric" placeholder="Team lead PIN" aria-label="Team lead PIN" autocomplete="off">
+        <button class="btn">Unlock</button></form>` : ""}
+      ${team.admin ? `<div class="admin">
+        <b>Team lead tools</b>
+        <label class="field">Points the team works on<select id="t-scope-live">${scopeOptions(team.scope())}</select></label>
+        <div><div class="sub-h" style="margin-top:0">Crew</div>
+          <div class="chips">${team.members().map(m => `<span class="chip">${esc(m)}<button data-act="rm-member" data-name="${esc(m)}" aria-label="Remove ${esc(m)}">×</button></span>`).join("")}</div></div>
+        <form class="inline" data-form="add-name"><input id="t-name" placeholder="Add a crew member" maxlength="40" aria-label="New crew member name"><button class="btn">Add</button></form>
+        <p class="muted" style="margin:0">To assign a zone, tap it on the map and pick a person.</p>
+        <button class="btn center" data-act="carry">Carry over yesterday’s unfinished zones</button>
+        <div><div class="sub-h" style="margin-top:0">Invite</div><span class="code">${esc(team.code)}</span></div>
+        <button class="btn center" data-act="copy-invite">Copy invite link</button>
+        <button class="linkbtn" data-act="lock">Close team lead tools</button></div>`
+      : team.ui === "pin" ? "" : `<button class="linkbtn" data-act="admin">Team lead tools</button>`}
+      <button class="linkbtn" data-act="leave" style="display:block">Leave this team on this device</button>`;
+    if (team.view) {
+      const z = team.zoneById(team.view);
+      const open = phoneMQ.matches ? !card.hidden : !!document.querySelector(".leaflet-popup");
+      if (z && open && document.querySelector(`[data-zone="${z.id}"].btn, .pop h3`)) {
+        const el = phoneMQ.matches ? card : document.querySelector(".leaflet-popup-content");
+        if (el && el.innerHTML.includes(`Zone ${z.num}<`)) {
+          if (phoneMQ.matches) { el.innerHTML = `<button class="close" aria-label="Close details">×</button>${zoneHTML(z)}`; el.querySelector(".close").addEventListener("click", clearSelection); }
+          else el.innerHTML = zoneHTML(z);
+        }
+      }
+    }
+  }
+
+  team.renderSummary = function () {
+    const mine = team.myZones();
+    const next = mine.find(z => !team.complete(z));
+    const inScope = openings.filter(f => team.inScope(f.properties));
+    const doneN = inScope.filter(f => team.done["n" + f.properties.node]).length;
+    $("summary").innerHTML = (next ? `<b>Zone ${next.num}</b> · ${team.doneCount(next)} of ${next.nodes.length} done`
+      : mine.length ? `<b>Your zones are done</b>` : `No zone yet today`) +
+      ` · team <b>${doneN}</b>/${inScope.length}`;
+  };
+
+  team.init = () => {
+    if (!TEAM_CONFIG) return;
+    const params = new URLSearchParams(location.search);
+    const fromLink = normCode(params.get("team"));
+    if (fromLink) {
+      params.delete("team");
+      history.replaceState(null, "", location.pathname + (params.toString() ? "?" + params : "") + location.hash);
+    }
+    const code = fromLink || tstore.code;
+    if (code) {
+      team.name = fromLink && fromLink !== tstore.code ? null : tstore.name || null;
+      startTeam(code); saveTeam();
+    } else renderTeam();
+  };
+
   // ---------- meta ----------
   L.DomEvent.disableClickPropagation(sheet);
   L.DomEvent.disableScrollPropagation(sheet);
@@ -845,6 +1435,7 @@ const DATA = /*__DATA__*/null;
       `the tracks count as being in a street median when a road runs within ${pr.rail_parallel_m} m of them on the approaches.` : "");
 
   rebuildAll();
+  team.init();
 
   // Offline support when served over https (the installable web app); skipped for file://.
   if ("serviceWorker" in navigator && window.isSecureContext && location.protocol !== "file:" && window.VCR_PWA) {

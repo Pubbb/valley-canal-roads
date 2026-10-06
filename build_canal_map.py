@@ -606,7 +606,117 @@ def build_geojson(canals, rails, canal_ways, connectors, openings, rail_xings):
     }
 
 
+# ---------------------------------------------------------------- team work zones
+
+ZONE_MAX = 8          # most points one person can check in a shift
+ZONE_MIN = 4          # smaller leftovers get merged into a neighbour when possible
+ZONE_MERGE_MAX = 10   # ...as long as the merged zone stays this small
+ZONE_LINK_M = 2500    # points further apart than this never share a zone unless chained
+ZONE_MERGE_M = 4000
+
+
+def make_zones(feats):
+    """Group openings into small, compact work zones of about ZONE_MIN..ZONE_MAX points."""
+    props = [f["properties"] for f in feats]
+    if not props:
+        return []
+    xy = proj([(p["lon"], p["lat"]) for p in props])
+    n = len(xy)
+
+    # 1. Single-linkage clusters, so a zone never spans a big empty gap
+    parent = list(range(n))
+
+    def find(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+    tree = STRtree(shapely.points(xy))
+    a, b = tree.query(shapely.points(xy), predicate="dwithin", distance=ZONE_LINK_M)
+    for i, j in zip(a, b):
+        ri, rj = find(int(i)), find(int(j))
+        if ri != rj:
+            parent[max(ri, rj)] = min(ri, rj)
+    clusters = defaultdict(list)
+    for i in range(n):
+        clusters[find(i)].append(i)
+
+    # 2. Recursive bisection along the longer axis until each piece fits a shift
+    zones = []
+
+    def split(idx):
+        if len(idx) <= ZONE_MAX:
+            zones.append(idx)
+            return
+        pts = xy[idx]
+        ax = 0 if np.ptp(pts[:, 0]) >= np.ptp(pts[:, 1]) else 1
+        order = [idx[k] for k in np.lexsort((pts[:, 1 - ax], pts[:, ax]))]
+        half = len(order) // 2
+        split(order[:half])
+        split(order[half:])
+    for key in sorted(clusters):
+        split(clusters[key])
+
+    # 3. Fold tiny zones into the nearest zone that has room
+    changed = True
+    while changed:
+        changed = False
+        cents = [xy[z].mean(axis=0) for z in zones]
+        for zi, z in enumerate(zones):
+            if len(z) >= ZONE_MIN:
+                continue
+            best = None
+            for zj, other in enumerate(zones):
+                if zj == zi or len(z) + len(other) > ZONE_MERGE_MAX:
+                    continue
+                d = float(np.hypot(*(cents[zi] - cents[zj])))
+                if d <= ZONE_MERGE_M and (best is None or d < best[0]):
+                    best = (d, zj)
+            if best:
+                zones[best[1]] = zones[best[1]] + z
+                zones.pop(zi)
+                changed = True
+                break
+
+    # 4. Number north-to-south in 3 km bands, west-to-east within a band
+    def key(z):
+        c = xy[z].mean(axis=0)
+        return (-math.floor(c[1] / 3000), c[0])
+    zones.sort(key=key)
+
+    out = []
+    for num, z in enumerate(zones, 1):
+        nodes = sorted(props[i]["node"] for i in z)
+        hull = shapely.MultiPoint(xy[z]).convex_hull.buffer(90, quad_segs=4).simplify(10)
+        ring = np.round(unproj(np.asarray(hull.exterior.coords)), 5).tolist()
+        c = unproj([xy[z].mean(axis=0)])[0]
+        names = defaultdict(int)
+        for i in z:
+            nm = props[i].get("canal") or props[i].get("canal_road")
+            if nm:
+                names[nm] += 1
+        label = max(names, key=lambda k: (names[k], k)) if names else None
+        out.append({"id": f"z{nodes[0]}", "num": num, "label": label, "nodes": nodes,
+                    "center": [round(c[1], 5), round(c[0], 5)], "ring": ring})
+    return out
+
+
+def build_zones(data):
+    feats = data["openings"]["features"]
+    zones = {
+        "all": make_zones(feats),
+        "red": make_zones([f for f in feats if not f["properties"]["barrier"]]),
+    }
+    for k, z in zones.items():
+        sizes = [len(x["nodes"]) for x in z]
+        log(f"{len(z)} work zones for '{k}' scope ({min(sizes)}-{max(sizes)} points, "
+            f"{sum(1 for s in sizes if ZONE_MIN <= s <= ZONE_MAX)} with {ZONE_MIN}-{ZONE_MAX})")
+    return zones
+
+
 WEB_DIR = os.path.join(HERE, "docs")  # served by GitHub Pages
+TEAM_CONFIG = os.path.join(HERE, "team_config.json")  # Firebase web config for team sync
+FIREBASE = "https://www.gstatic.com/firebasejs/12.19.0/"
 PWA_HEAD = """<link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-180.png">
@@ -628,6 +738,12 @@ def render(data, pwa=False):
         html = f.read()
     blob = json.dumps(data, separators=(",", ":"), ensure_ascii=False).replace("</", "<\/")
     html = html.replace("/*__DATA__*/null", blob)
+    team = None
+    if os.path.exists(TEAM_CONFIG):
+        with open(TEAM_CONFIG, encoding="utf-8") as f:
+            team = json.load(f)
+    html = html.replace("/*__TEAM__*/null", json.dumps(team))
+    html = html.replace("__FIREBASE__", FIREBASE)
     if pwa:
         html = html.replace("<!--__PWA_HEAD__-->", PWA_HEAD)
     return html
@@ -679,7 +795,7 @@ def write_web(data):
     with open(os.path.join(WEB_DIR, "manifest.webmanifest"), "w", encoding="utf-8") as f:
         json.dump(manifest, f, indent=2)
     version = time.strftime("%Y%m%d%H%M%S")
-    sw = SW_TEMPLATE.replace("__VERSION__", version).replace("__LEAFLET__", LEAFLET)
+    sw = SW_TEMPLATE.replace("__VERSION__", version).replace("__LEAFLET__", LEAFLET).replace("__FIREBASE__", FIREBASE)
     with open(os.path.join(WEB_DIR, "sw.js"), "w", encoding="utf-8") as f:
         f.write(sw)
     log(f"Wrote web app to {WEB_DIR}")
@@ -709,8 +825,12 @@ self.addEventListener("fetch", e => {
       caches.open(CACHE).then(c => c.put(e.request, copy));
       return r;
     }).catch(() => caches.match(e.request, { ignoreSearch: true }).then(r => r || caches.match("./"))));
-  } else if (url.href.startsWith("__LEAFLET__")) {
-    e.respondWith(caches.match(e.request).then(r => r || fetch(e.request)));
+  } else if (url.href.startsWith("__LEAFLET__") || url.href.startsWith("__FIREBASE__")) {
+    e.respondWith(caches.match(e.request).then(r => r || fetch(e.request).then(res => {
+      const copy = res.clone();
+      caches.open(CACHE).then(c => c.put(e.request, copy));
+      return res;
+    })));
   }
 });
 """
@@ -749,6 +869,7 @@ def main():
                        "rail_parallel_m": RAIL_PARALLEL_M},
         }
 
+    data["zones"] = build_zones(data)
     with open(args.out, "w", encoding="utf-8") as f:
         f.write(render(data))
     log(f"Wrote {args.out} ({os.path.getsize(args.out) / 1e6:.1f} MB)")

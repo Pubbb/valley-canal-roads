@@ -1,0 +1,22 @@
+rules_version = '2';
+
+// Valley Canal Roads team sync.
+// A team's data is only reachable by knowing its code, which is part of the document path:
+//   teams/{code}/state/settings, teams/{code}/state/done, teams/{code}/days/{YYYY-MM-DD}
+// Nobody can list teams, so codes can't be discovered. Anyone who has a code can read and
+// write that team, so share it only with your crew.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /teams/{team}/state/{doc} {
+      allow get: if team.size() >= 16 && doc in ['settings', 'done'];
+      allow create, update: if team.size() >= 16 && doc in ['settings', 'done']
+                            && request.resource.data.keys().size() <= 5000;
+    }
+    match /teams/{team}/days/{day} {
+      allow get: if team.size() >= 16;
+      allow create, update: if team.size() >= 16
+                            && day.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+                            && request.resource.data.keys().size() <= 1000;
+    }
+  }
+}
