@@ -391,11 +391,13 @@ const TEAM_CONFIG = /*__TEAM__*/null;
              dirt: "#92400e", paved: "#ea580c", unknown: "#d97706", nocars: "#64748b", red: "#dc2626", grey: "#7c828b",
              rail: "#7c3aed", streetcar: "#db2777", halo: "#ffffff", ring: "#111827", me: "#1a73e8",
              collected: "#eab308", collectedStroke: "#5c3d0a", blocked: "#111827", blockedStroke: "#ffffff",
+             zoneOpen: "#1f2937", zoneHalo: "#ffffff",
              railx: "#c026d3", railOther: "#4f46e5" },
     dark:  { canal: "#4ea3ff", under: "#3d6a99", road: "#fb923c", trail: "#4ade80",
              dirt: "#d6a35c", paved: "#fb923c", unknown: "#fcd34d", nocars: "#94a3b8", red: "#f87171", grey: "#9ca3af",
              rail: "#c084fc", streetcar: "#f472b6", halo: "#111418", ring: "#ffffff", me: "#5aa9f5",
              collected: "#facc15", collectedStroke: "#111418", blocked: "#e5e7eb", blockedStroke: "#111418",
+             zoneOpen: "#f1f5f9", zoneHalo: "#0b0f14",
              railx: "#e879f9", railOther: "#818cf8" }
   };
   let pal = PAL[darkMQ.matches ? "dark" : "light"];
@@ -1209,12 +1211,16 @@ const TEAM_CONFIG = /*__TEAM__*/null;
     const polys = [], labels = [];
     team.zones().forEach(z => {
       const who = team.assignee(z), done = team.complete(z), mine = who && who === team.name;
-      const color = done ? pal.trail : mine ? accent() : who ? personColor(who) : pal.grey;
+      const color = done ? pal.trail : mine ? accent() : who ? personColor(who) : pal.zoneOpen;
       const style = done ? { color, weight: 1.5, dashArray: "4 5", fillOpacity: 0.05 }
         : mine ? { color, weight: 3, fillOpacity: 0.14 }
         : who ? { color, weight: 2, fillOpacity: 0.12 }
-        : { color, weight: 1, fillOpacity: 0.04 };
-      const poly = L.polygon(z.ring.map(([lon, lat]) => [lat, lon]), Object.assign({ renderer: renderers.zones, fillColor: color }, style));
+        : { color, weight: 2.5, dashArray: "7 5", fillOpacity: 0.07 };
+      const ring = z.ring.map(([lon, lat]) => [lat, lon]);
+      // A contrasting halo under every outline keeps zones readable on streets, satellite and dark maps
+      polys.push(L.polygon(ring, { renderer: renderers.zones, color: pal.zoneHalo, weight: style.weight + 3,
+        opacity: 0.75, fill: false, interactive: false }));
+      const poly = L.polygon(ring, Object.assign({ renderer: renderers.zones, fillColor: color }, style));
       poly.on("click", e => showZone(z, e.latlng));
       polys.push(poly);
       const lab = L.marker(z.center, {
