@@ -1252,7 +1252,12 @@ const TEAM_CONFIG = /*__TEAM__*/null;
     // Points in the zone's best driving order (worked out when the map was built)
     const pts = (z.route || z.nodes).map(n => opByNode.get(n)).filter(Boolean);
     const todo = pts.filter(p => !entryFor(p.node));
-    const route = routeURL(todo.length ? todo : pts);
+    // One stop per crossing (openings within ~150 m share a stop), so even a 12-opening zone fits Google's 10-stop limit
+    const stops = [];
+    (todo.length ? todo : pts).forEach(p => {
+      if (!stops.some(q => Math.abs(q.lat - p.lat) * 110574 + Math.abs(q.lon - p.lon) * 92900 < 150)) stops.push(p);
+    });
+    const route = routeURL(stops);
     const miles = z.km != null ? Math.max(0.1, z.km / 1.609).toFixed(1) : null;
     return `<div class="pop">
       <h3>Zone ${z.num}</h3>
