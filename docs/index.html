@@ -506,6 +506,9 @@ const TEAM_CONFIG = {"apiKey": "AIzaSyCChaId316tMPnq3eewiVjT0R2cgwvgMvM", "authD
     const on = isCollected(p);
     if (team.active) {
       if (!team.inScope(p)) return `<p class="caveat">Not on the team’s work list.</p>`;
+      if (shiftsOn() && !myShift() && !team.admin) {
+        return `<p class="caveat"><b>Pick your shift first.</b> Open the panel and choose AM or PM, then you can mark points.</p>`;
+      }
       const d = entryOf(p), blocked = isBlocked(p);
       const locked = on && d.by !== team.name && !team.admin;
       const sh = curShift();

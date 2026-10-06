@@ -9,8 +9,13 @@ service cloud.firestore {
   match /databases/{database}/documents {
     match /teams/{team}/state/{doc} {
       allow get: if team.size() >= 16 && doc in ['settings', 'done'];
-      allow create, update: if team.size() >= 16 && doc in ['settings', 'done']
-                            && request.resource.data.keys().size() <= 5000;
+      allow create: if team.size() >= 16 && doc in ['settings', 'done']
+                    && request.resource.data.keys().size() <= 5000;
+      // The team lead PIN is set when the team is created and can't be changed by crew afterwards.
+      allow update: if team.size() >= 16 && doc in ['settings', 'done']
+                    && request.resource.data.keys().size() <= 5000
+                    && (doc != 'settings'
+                        || request.resource.data.get('adminPinHash', null) == resource.data.get('adminPinHash', null));
     }
     match /teams/{team}/days/{day} {
       allow get: if team.size() >= 16;
