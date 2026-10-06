@@ -205,6 +205,14 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
   background: var(--panel); color: var(--text); border: 2px solid; font: 700 12px/1 var(--font); box-shadow: 0 1px 4px rgba(0,0,0,.25); }
 .zlabel.mine span { background: var(--accent); color: var(--accent-text); border-color: var(--accent) !important; }
 
+/* ---------- can't access ---------- */
+.blocked { border: 1px solid var(--border); border-left: 4px solid var(--text); border-radius: 10px; padding: 8px 10px; margin: 0 0 10px; font-size: 14px; }
+.blocked small { display: block; color: var(--muted); font-size: 12.5px; }
+.blocked p { margin: 4px 0 0; font-size: 13.5px; }
+.noaccess { margin: -2px 0 10px; }
+.noaccess summary { cursor: pointer; color: var(--accent); font-size: 14px; padding: 6px 0; }
+.noaccess form { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+
 /* ---------- toast ---------- */
 .toast { position: fixed; z-index: 1200; left: 50%; top: calc(14px + env(safe-area-inset-top, 0px)); transform: translateX(-50%);
   background: var(--text); color: var(--panel); padding: 9px 14px; border-radius: 10px; font-size: 14px;
@@ -340,8 +348,14 @@ const TEAM_CONFIG = /*__TEAM__*/null;
   }
   // Shared team state. When signed in to a team, "done" comes from the team instead of this device.
   const team = { active: false, code: null, name: null, settings: null, done: {}, day: {}, admin: false };
-  const isCollected = p => team.active ? !!team.done["n" + p.node] : Object.prototype.hasOwnProperty.call(collected, p.node);
-  const collectedAt = p => team.active ? (team.done["n" + p.node] || {}).at : collected[p.node];
+  // A team "done" entry is either completed ({by, at}) or can't access ({by, at, status: "blocked", reason, note}).
+  const entryOf = p => team.done["n" + p.node];
+  const isBlocked = p => team.active && !!entryOf(p) && entryOf(p).status === "blocked";
+  const isCollected = p => team.active ? !!entryOf(p) && entryOf(p).status !== "blocked"
+    : Object.prototype.hasOwnProperty.call(collected, p.node);
+  const REASONS = { gate: "Locked gate", noway: "No way in", private: "Private property", unsafe: "Unsafe",
+                    construction: "Construction", other: "Other" };
+  const collectedAt = p => team.active ? (isCollected(p) ? entryOf(p).at : undefined) : collected[p.node];
   const fmtDate = iso => { const d = new Date(iso); return isNaN(d) ? "" : d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }); };
 
   // ---------- palette (per theme) ----------
@@ -349,12 +363,12 @@ const TEAM_CONFIG = /*__TEAM__*/null;
     light: { canal: "#1872d6", under: "#7fb2e8", road: "#c2570c", trail: "#16a34a",
              dirt: "#92400e", paved: "#ea580c", unknown: "#d97706", nocars: "#64748b", red: "#dc2626", grey: "#7c828b",
              rail: "#7c3aed", streetcar: "#db2777", halo: "#ffffff", ring: "#111827", me: "#1a73e8",
-             collected: "#eab308", collectedStroke: "#5c3d0a",
+             collected: "#eab308", collectedStroke: "#5c3d0a", blocked: "#111827", blockedStroke: "#ffffff",
              railx: "#c026d3", railOther: "#4f46e5" },
     dark:  { canal: "#4ea3ff", under: "#3d6a99", road: "#fb923c", trail: "#4ade80",
              dirt: "#d6a35c", paved: "#fb923c", unknown: "#fcd34d", nocars: "#94a3b8", red: "#f87171", grey: "#9ca3af",
              rail: "#c084fc", streetcar: "#f472b6", halo: "#111418", ring: "#ffffff", me: "#5aa9f5",
-             collected: "#facc15", collectedStroke: "#111418",
+             collected: "#facc15", collectedStroke: "#111418", blocked: "#e5e7eb", blockedStroke: "#111418",
              railx: "#e879f9", railOther: "#818cf8" }
   };
   let pal = PAL[darkMQ.matches ? "dark" : "light"];
@@ -460,11 +474,23 @@ const TEAM_CONFIG = /*__TEAM__*/null;
     const on = isCollected(p);
     if (team.active) {
       if (!team.inScope(p)) return `<p class="caveat">Not on the team’s work list.</p>`;
-      const d = team.done["n" + p.node];
-      const locked = d && d.by !== team.name && !team.admin;
-      return `<label class="collect${on ? " on" : ""}">
+      const d = entryOf(p), blocked = isBlocked(p);
+      const locked = on && d.by !== team.name && !team.admin;
+      let html = `<label class="collect${on ? " on" : ""}">
         <input type="checkbox" data-node="${p.node}" ${on ? "checked" : ""} ${locked ? "disabled" : ""}>
-        <span>Completed</span><small>${d ? esc(`${d.by} · ${fmtDate(d.at)}`) : ""}</small></label>`;
+        <span>Completed</span><small>${on ? esc(`${d.by} · ${fmtDate(d.at)}`) : ""}</small></label>`;
+      if (blocked) {
+        html += `<div class="blocked"><b>Can’t access</b> · ${esc(REASONS[d.reason] || d.reason || "")}
+          <small>${esc(d.by)} · ${esc(fmtDate(d.at))}</small>${d.note ? `<p>${esc(d.note)}</p>` : ""}
+          ${d.by === team.name || team.admin ? `<button class="linkbtn" data-act="reopen" data-node="${p.node}">Reopen this point</button>` : ""}</div>`;
+      } else if (!on) {
+        html += `<details class="noaccess"><summary>Can’t access this point?</summary>
+          <form data-form="blocked" data-node="${p.node}">
+            <label class="field">Reason<select id="b-reason-${p.node}">${Object.entries(REASONS).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select></label>
+            <label class="field">Note (optional)<input id="b-note-${p.node}" maxlength="200" placeholder="e.g. gate locked with SRP padlock"></label>
+            <button class="btn primary">Mark can’t access</button></form></details>`;
+      }
+      return html;
     }
     return `<label class="collect${on ? " on" : ""}">
         <input type="checkbox" data-node="${p.node}" ${on ? "checked" : ""}>
@@ -550,6 +576,7 @@ const TEAM_CONFIG = /*__TEAM__*/null;
   const points = openings.concat(railXings);
   // Which layer a point is drawn in
   function pointLayer(p) {
+    if (isBlocked(p)) return "blocked";
     if (isCollected(p)) return "collected";
     if (p.kind === "rail") return p.setting === "gated" ? "railGated" : p.setting === "median" ? "railMedian" : "railOther";
     return p.barrier ? "grey" : "red";
@@ -592,6 +619,8 @@ const TEAM_CONFIG = /*__TEAM__*/null;
       color: () => pal.grey, sw: () => dot(pal.grey) },
     { id: "collected", group: "Your collection", label: "Collected", pane: "openings", points: inLayer("collected"),
       color: () => pal.collected, stroke: () => pal.collectedStroke, sw: () => dot(pal.collected, pal.collectedStroke) },
+    { id: "blocked", label: "Can’t access", pane: "openings", points: inLayer("blocked"),
+      color: () => pal.blocked, stroke: () => pal.blockedStroke, sw: () => dot(pal.blocked, pal.blockedStroke) },
   ];
   let onlyDrivable = saved.onlyDrivable === true;
   const passesSpur = p => p.kind === "rail" || ((showSpurs || !p.via_connector) && (!onlyDrivable || p.drive === "drivable"));
@@ -600,7 +629,7 @@ const TEAM_CONFIG = /*__TEAM__*/null;
   // Collected markers are drawn first so the ones still to visit sit on top.
   const drawOrder = [byId.collected].concat(defs.filter(d => d.id !== "collected"));
   const STACK = ["zones", "canals", "under", "rail", "streetcar", "trails", "rNoCars", "rUnknown", "rPaved", "rDirt",
-                 "collected", "grey", "red", "railGated", "railOther", "railMedian"];
+                 "collected", "blocked", "grey", "red", "railGated", "railOther", "railMedian"];
   function restack() {
     const layerFor = id => id === "zones" ? team.zoneLayer : state[id] && state[id].layer;
     const isOn = id => id === "zones" ? team.active && team.showZones : state[id] && state[id].on;
@@ -721,7 +750,7 @@ const TEAM_CONFIG = /*__TEAM__*/null;
       const dist = mi < 0.1 ? `${Math.round(d * 3.28084)} ft` : `${mi.toFixed(mi < 10 ? 1 : 0)} mi`;
       return `<button class="near" data-i="${i}">
         <span class="dot" style="background:${byId[pointLayer(p)].color()}"></span>
-        <span class="nm">${esc(p.street || "Unnamed street")}<small>${isCollected(p) ? "Collected · " : ""}${
+        <span class="nm">${esc(p.street || "Unnamed street")}<small>${isBlocked(p) ? "Can’t access · " : isCollected(p) ? (team.active ? "Completed · " : "Collected · ") : ""}${
           p.kind === "rail" ? "Rail · " + esc((SETTING[p.setting] || [p.setting])[0])
           : esc(p.canal || CONN[p.conn] || "") + (p.barrier ? " · " + esc(p.barrier_type.replace(/_/g, " ")) : "")}</small></span>
         <span class="d">${dist}</span></button>`;
@@ -874,7 +903,9 @@ const TEAM_CONFIG = /*__TEAM__*/null;
     download(`canal-rail-points-${DATA.meta.extract}.geojson`,
       JSON.stringify({ type: "FeatureCollection", features: visiblePoints().map(f => ({ ...f,
         properties: { ...f.properties, collected: isCollected(f.properties), collected_on: collectedAt(f.properties) || null,
-        collected_by: team.active ? (team.done["n" + f.properties.node] || {}).by || null : null } })) }, null, 1),
+        cant_access: isBlocked(f.properties), cant_access_reason: isBlocked(f.properties) ? REASONS[entryOf(f.properties).reason] || null : null,
+        cant_access_note: isBlocked(f.properties) ? entryOf(f.properties).note || null : null,
+        collected_by: team.active ? (entryOf(f.properties) || {}).by || null : null } })) }, null, 1),
       "application/geo+json");
   });
   $("exp-csv").addEventListener("click", () => {
@@ -882,12 +913,13 @@ const TEAM_CONFIG = /*__TEAM__*/null;
                   "canal", "drive", "drive_detail", "barrier", "barrier_type", "barrier_m", "line", "setting", "signals", "gate", "driveway",
                   "access", "motor_vehicle"];
     const q = v => v == null ? "" : /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v);
-    const lines = [cols.concat("collected", "collected_on", "collected_by", "street_view", "osm").join(",")];
+    const lines = [cols.concat("collected", "collected_on", "collected_by", "cant_access", "cant_access_reason", "cant_access_note", "street_view", "osm").join(",")];
     visiblePoints().forEach(f => {
       const p = f.properties;
       lines.push(cols.map(c => q(p[c])).concat(
         isCollected(p), collectedAt(p) ? collectedAt(p).slice(0, 10) : "",
-        q(team.active ? (team.done["n" + p.node] || {}).by : ""),
+        q(team.active ? (entryOf(p) || {}).by : ""),
+        isBlocked(p), q(isBlocked(p) ? REASONS[entryOf(p).reason] : ""), q(isBlocked(p) ? entryOf(p).note : ""),
         `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${p.lat},${p.lon}`,
         `https://www.openstreetmap.org/node/${p.node}`).join(","));
     });
@@ -1063,7 +1095,12 @@ const TEAM_CONFIG = /*__TEAM__*/null;
       const sc = this.scope();
       return sc === "red" ? !p.barrier : sc === "drive" ? p.drive === "drivable" : true;
     },
-    doneCount(z) { return z.nodes.filter(n => this.done["n" + n]).length; },
+    doneCount(z) { return z.nodes.filter(n => this.done["n" + n]).length; },  // completed or can't access
+    blockedCount(z) { return z.nodes.filter(n => (this.done["n" + n] || {}).status === "blocked").length; },
+    progress(z) {
+      const b = this.blockedCount(z);
+      return `${this.doneCount(z)} of ${z.nodes.length} done` + (b ? ` · ${b} can’t access` : "");
+    },
     complete(z) { return this.doneCount(z) === z.nodes.length; },
     assignee(z) { const a = this.day[z.id]; return a ? a.to : null; },
     members() { return ((this.settings && this.settings.members) || []).slice().sort((a, b) => a.localeCompare(b)); },
@@ -1179,12 +1216,12 @@ const TEAM_CONFIG = /*__TEAM__*/null;
     return `<div class="pop">
       <h3>Zone ${z.num}</h3>
       <span class="pill" style="background:${color}">${esc(status)}</span>
-      <p class="zmeta">${esc(z.label || "Canal openings")} · ${pts.length} points · ${done} done</p>
+      <p class="zmeta">${esc(z.label || "Canal openings")} · ${esc(team.progress(z))}</p>
       ${actions ? `<div class="zactions">${actions}</div>` : ""}
       <div class="zpts">${pts.map(p => {
-        const d = team.done["n" + p.node];
-        return `<button data-act="point" data-node="${p.node}"><span class="dot" style="background:${d ? pal.collected : p.barrier ? pal.grey : pal.red}"></span>
-          <span class="nm">${esc(p.street || "Unnamed street")}</span><small>${d ? "✓ " + esc(d.by) : ""}</small></button>`;
+        const d = team.done["n" + p.node], bl = d && d.status === "blocked";
+        return `<button data-act="point" data-node="${p.node}"><span class="dot" style="background:${bl ? pal.blocked : d ? pal.collected : p.barrier ? pal.grey : pal.red}"></span>
+          <span class="nm">${esc(p.street || "Unnamed street")}</span><small>${bl ? "✕ " + esc(REASONS[d.reason] || "Can’t access") : d ? "✓ " + esc(d.by) : ""}</small></button>`;
       }).join("")}</div>
       <div class="links"><a class="primary" href="${route}" target="_blank" rel="noopener">Route in Google Maps</a>
         <a href="#" data-act="fit" data-zone="${z.id}">Zoom to zone</a></div></div>`;
@@ -1215,12 +1252,32 @@ const TEAM_CONFIG = /*__TEAM__*/null;
     const value = on ? { by: team.name, at: new Date().toISOString() } : undefined;
     if (on) team.done[field] = value; else delete team.done[field];  // show it right away; the listener confirms
     refresh(true);
+    reshowPoint(node);
     team.sync.setField(["state", "done"], field, value).catch(onErr);
     if (on) {
       const z = team.zones().find(zz => zz.nodes.includes(Number(node)));
       if (z && team.complete(z)) toast(`Zone ${z.num} is complete. Nice work.`);
     }
   };
+  // Redraw a point's open card or popup after its status changes.
+  function reshowPoint(node) {
+    const p = opByNode.get(Number(node));
+    if (!p) return;
+    const el = phoneMQ.matches ? (card.hidden ? null : card) : document.querySelector(".leaflet-popup-content");
+    if (el && el.querySelector(`[data-node="${node}"]`)) showDetail(pointHTML(p), L.latLng(p.lat, p.lon), true);
+  }
+  function setBlocked(node, value) {
+    const field = "n" + node;
+    if (value) team.done[field] = value; else delete team.done[field];
+    refresh(true);
+    reshowPoint(node);
+    team.sync.setField(["state", "done"], field, value).catch(onErr);
+    if (value) {
+      const z = team.zones().find(zz => zz.nodes.includes(Number(node)));
+      toast(z && team.complete(z) ? `Marked can’t access. Zone ${z.num} is now closed.` : "Marked can’t access.");
+    }
+  }
+
   async function claimZone(z, who, override) {
     try {
       await team.sync.claim(["days", team.today], z.id, { to: who, at: new Date().toISOString(), by: team.name }, override);
@@ -1280,6 +1337,7 @@ const TEAM_CONFIG = /*__TEAM__*/null;
     else if (act === "admin") { team.ui = "pin"; renderTeam(); }
     else if (act === "lock") { team.admin = false; refresh(true); }
     else if (act === "carry") carryOver();
+    else if (act === "reopen") { setBlocked(el.dataset.node, undefined); toast("Point reopened."); }
     else if (act === "copy-invite") {
       const link = inviteLink();
       (navigator.clipboard ? navigator.clipboard.writeText(link) : Promise.reject()).then(
@@ -1295,6 +1353,12 @@ const TEAM_CONFIG = /*__TEAM__*/null;
     if (!f.dataset || !f.dataset.form) return;
     e.preventDefault();
     const val = id => (f.querySelector("#" + id) || {}).value || "";
+    if (f.dataset.form === "blocked") {
+      const node = f.dataset.node;
+      setBlocked(node, { by: team.name, at: new Date().toISOString(), status: "blocked",
+        reason: val("b-reason-" + node) || "other", note: val("b-note-" + node).trim().slice(0, 200) });
+      return;
+    }
     if (f.dataset.form === "join") {
       const code = normCode(val("t-code"));
       if (code.length < 16) return toast("Team codes look like CANAL-XXXX-XXXX-XXXX.");
@@ -1374,13 +1438,16 @@ const TEAM_CONFIG = /*__TEAM__*/null;
     const zoneRow = z => {
       const d = team.doneCount(z), n = z.nodes.length, ok = d === n;
       return `<button class="zrow" data-act="zone" data-zone="${z.id}"><span class="zn" style="background:${ok ? pal.trail : accent()}">${z.num}</span>
-        <span class="nm">${esc(z.label || "Canal openings")}<small>${d} of ${n} done</small></span>${ok ? `<span class="ok">✓</span>` : ""}</button>`;
+        <span class="nm">${esc(z.label || "Canal openings")}<small>${esc(team.progress(z))}</small></span>${ok ? `<span class="ok">✓</span>` : ""}</button>`;
     };
     const byPerson = {};
     team.zones().forEach(z => { const w = team.assignee(z); if (w) (byPerson[w] = byPerson[w] || []).push(z); });
     const openCount = team.zones().filter(z => !team.assignee(z) && !team.complete(z)).length;
     const inScope = openings.filter(f => team.inScope(f.properties));
-    const doneN = inScope.filter(f => team.done["n" + f.properties.node]).length;
+    const doneN = inScope.filter(f => isCollected(f.properties)).length;
+    const blockedPts = inScope.filter(f => isBlocked(f.properties)).map(f => f.properties)
+      .sort((a, b) => String(entryOf(b).at).localeCompare(String(entryOf(a).at)));
+    const leftN = inScope.length - doneN - blockedPts.length;
     const doneZones = team.zones().filter(z => team.complete(z)).length;
     teamEl.innerHTML = `
       <div class="who"><span class="avatar" style="background:${personColor(team.name)}">${esc(team.name.slice(0, 1).toUpperCase())}</span>
@@ -1395,8 +1462,8 @@ const TEAM_CONFIG = /*__TEAM__*/null;
         <span>${byPerson[w].map(z => `Zone ${z.num} (${team.doneCount(z)}/${z.nodes.length})`).join(", ")}</span></div>`).join("") || `<span class="muted">No zones claimed yet today.</span>`}
         <span class="muted">${openCount} open zones · ${doneZones} of ${team.zones().length} zones done</span></div>
       <p class="sub-h">Overall</p>
-      <p class="coll-stat"><b>${doneN.toLocaleString()}</b> of ${inScope.length.toLocaleString()} points completed</p>
-      <div class="progress"><span style="width:${inScope.length ? doneN / inScope.length * 100 : 0}%"></span></div>
+      <p class="coll-stat"><b>${doneN.toLocaleString()}</b> completed · <b>${blockedPts.length}</b> can’t access · <b>${leftN.toLocaleString()}</b> left</p>
+      <div class="progress"><span style="width:${inScope.length ? (doneN + blockedPts.length) / inScope.length * 100 : 0}%"></span></div>
       <label class="layer"><input type="checkbox" id="ly-zones" ${team.showZones ? "checked" : ""}><span class="name">Show work zones on the map</span></label>
       ${team.ui === "pin" ? `<form class="inline" data-form="pin"><input id="t-pin" type="password" inputmode="numeric" placeholder="Team lead PIN" aria-label="Team lead PIN" autocomplete="off">
         <button class="btn">Unlock</button></form>` : ""}
@@ -1407,6 +1474,12 @@ const TEAM_CONFIG = /*__TEAM__*/null;
           <div class="chips">${team.members().map(m => `<span class="chip">${esc(m)}<button data-act="rm-member" data-name="${esc(m)}" aria-label="Remove ${esc(m)}">×</button></span>`).join("")}</div></div>
         <form class="inline" data-form="add-name"><input id="t-name" placeholder="Add a crew member" maxlength="40" aria-label="New crew member name"><button class="btn">Add</button></form>
         <p class="muted" style="margin:0">To assign a zone, tap it on the map and pick a person.</p>
+        <div><div class="sub-h" style="margin-top:0">Can’t access (${blockedPts.length})</div>
+          ${blockedPts.length ? `<div class="zpts">${blockedPts.map(bp => { const e = entryOf(bp); return `<button data-act="point" data-node="${bp.node}">
+            <span class="dot" style="background:${pal.blocked}"></span><span class="nm">${esc(bp.street || "Unnamed street")}</span>
+            <small>${esc(REASONS[e.reason] || "")} · ${esc(e.by)}</small></button>`; }).join("")}</div>
+            <p class="muted" style="margin:4px 0 0">Tap one to see the note or reopen it.</p>`
+          : `<p class="muted" style="margin:0">None marked yet.</p>`}</div>
         <button class="btn center" data-act="carry">Carry over yesterday’s unfinished zones</button>
         <div><div class="sub-h" style="margin-top:0">Invite</div><span class="code">${esc(team.code)}</span></div>
         <button class="btn center" data-act="copy-invite">Copy invite link</button>
@@ -1431,7 +1504,7 @@ const TEAM_CONFIG = /*__TEAM__*/null;
     const next = mine.find(z => !team.complete(z));
     const inScope = openings.filter(f => team.inScope(f.properties));
     const doneN = inScope.filter(f => team.done["n" + f.properties.node]).length;
-    $("summary").innerHTML = (next ? `<b>Zone ${next.num}</b> · ${team.doneCount(next)} of ${next.nodes.length} done`
+    $("summary").innerHTML = (next ? `<b>Zone ${next.num}</b> · ${esc(team.progress(next))}`
       : mine.length ? `<b>Your zones are done</b>` : `No zone yet today`) +
       ` · team <b>${doneN}</b>/${inScope.length}`;
   };
