@@ -1363,6 +1363,58 @@ const TEAM_CONFIG = {"apiKey": "AIzaSyCChaId316tMPnq3eewiVjT0R2cgwvgMvM", "authD
     const z = open[0];
     claimZone(z, team.name, false).then(ok => { if (ok) { collapseOnPhone(); fitZone(z); showZone(z); } });
   }
+  // ----- team backup / restore -----
+  // A backup holds the team's settings, every completion / can't-access entry, and the last 30 days of
+  // zone assignments. Restoring only adds what's missing, so it never overwrites newer work. It also
+  // accepts the nightly backup file, which holds every team keyed by code.
+  async function backupTeam() {
+    try {
+      const days = {};
+      for (let i = 0; i < 30; i++) {
+        const d = phoenixDay(-i), doc = await team.sync.get(["days", d]);
+        if (doc && Object.keys(doc).length) days[d] = doc;
+      }
+      const data = { app: "valley-canal-roads-team", version: 1, code: team.code, exported: new Date().toISOString(),
+        settings: team.settings || {}, done: team.done || {}, days };
+      download(`canal-team-backup-${phoenixDay()}.json`, JSON.stringify(data, null, 1), "application/json");
+      const nd = Object.keys(team.done || {}).length, ny = Object.keys(days).length;
+      toast(`Backed up ${nd} point${nd === 1 ? "" : "s"} and ${ny} day${ny === 1 ? "" : "s"} of assignments.`);
+    } catch (err) { toast(syncError(err)); }
+  }
+  async function restoreTeam(text) {
+    let data;
+    try { data = JSON.parse(text); } catch (e) { data = null; }
+    if (data && data.teams && typeof data.teams === "object") data = data.teams[team.code];  // nightly backup
+    if (!data || typeof data !== "object" || !data.done) {
+      return toast("That file isn’t a backup of this team. Choose a canal-team-backup file, or a nightly backup that includes this team.");
+    }
+    try {
+      const done = {};
+      for (const [k, v] of Object.entries(data.done || {})) {
+        if (/^[nap]\d+$/.test(k) && v && typeof v === "object" && !team.done[k]) done[k] = v;
+      }
+      if (Object.keys(done).length) await team.sync.merge(["state", "done"], done);
+      const s0 = data.settings || {}, cur = team.settings || {};
+      const members = (s0.members || []).filter(m => typeof m === "string" && !(cur.members || []).includes(m));
+      for (const m of members) await team.sync.listAdd(["state", "settings"], "members", m);
+      const shiftOf = {};
+      for (const [m, sh] of Object.entries(s0.shiftOf || {})) {
+        if ((sh === "am" || sh === "pm") && !((cur.shiftOf || {})[m])) shiftOf[m] = sh;
+      }
+      if (Object.keys(shiftOf).length) await team.sync.merge(["state", "settings"], { shiftOf });
+      let dayKeys = 0;
+      for (const [d, doc] of Object.entries(data.days || {})) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || !doc) continue;
+        const now = await team.sync.get(["days", d]) || {};
+        const add = {};
+        for (const [k, v] of Object.entries(doc)) if (!now[k] && v && v.to) add[k] = v;
+        if (Object.keys(add).length) { await team.sync.merge(["days", d], add); dayKeys += Object.keys(add).length; }
+      }
+      const n = (k, w) => `${k} ${w}${k === 1 ? "" : "s"}`;
+      toast(`Restored ${n(Object.keys(done).length, "point")}, ${n(members.length, "crew name")} and ${n(dayKeys, "zone assignment")}. Nothing newer was changed.`);
+    } catch (err) { toast(syncError(err)); }
+  }
+
   async function carryOver() {
     try {
       const y = await team.sync.get(["days", phoenixDay(-1)]) || {};
@@ -1404,6 +1456,13 @@ const TEAM_CONFIG = {"apiKey": "AIzaSyCChaId316tMPnq3eewiVjT0R2cgwvgMvM", "authD
     else if (act === "admin") { team.ui = "pin"; renderTeam(); }
     else if (act === "lock") { team.admin = false; refresh(true); }
     else if (act === "carry") carryOver();
+    else if (act === "team-backup") backupTeam();
+    else if (act === "team-restore") {
+      const inp = document.createElement("input");
+      inp.type = "file"; inp.accept = ".json,application/json";
+      inp.addEventListener("change", () => { const f = inp.files && inp.files[0]; if (f) f.text().then(restoreTeam); });
+      inp.click();
+    }
     else if (act === "my-shift") team.sync.merge(["state", "settings"], { shiftOf: { [team.name]: el.dataset.shift } }).catch(onErr);
     else if (act === "change-shift") team.sync.merge(["state", "settings"], { shiftOf: { [team.name]: myShift() === "pm" ? "am" : "pm" } })
       .then(() => toast(`You’re now on the ${SHIFT[myShift() === "pm" ? "am" : "pm"]} shift.`)).catch(onErr);
@@ -1580,6 +1639,10 @@ const TEAM_CONFIG = {"apiKey": "AIzaSyCChaId316tMPnq3eewiVjT0R2cgwvgMvM", "authD
         <button class="btn center" data-act="carry">Carry over yesterday’s unfinished zones</button>
         <div><div class="sub-h" style="margin-top:0">Invite</div><span class="code">${esc(team.code)}</span></div>
         <button class="btn center" data-act="copy-invite">Copy invite link</button>
+        <div><div class="sub-h" style="margin-top:0">Backup</div>
+          <div class="grid2"><button class="btn center" data-act="team-backup">Back up team</button>
+          <button class="btn center" data-act="team-restore">Restore</button></div>
+          <p class="muted" style="margin:4px 0 0">Restore only adds what’s missing; it never overwrites newer work.</p></div>
         <button class="linkbtn" data-act="lock">Close team lead tools</button></div>`
       : team.ui === "pin" ? "" : `<button class="linkbtn" data-act="admin">Team lead tools</button>`}
       <button class="linkbtn" data-act="leave" style="display:block">Leave this team on this device</button>`;
